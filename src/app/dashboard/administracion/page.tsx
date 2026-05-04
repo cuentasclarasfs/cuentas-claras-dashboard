@@ -1,6 +1,6 @@
 import {
-  getStatusPago, getStatusPagoFecha, getVentasComisiones, getEERRCCForMonth,
-  isClosedStatus, parseNumES, formatARS, currentMonthKey,
+  getStatusPago, getStatusPagoFecha, getVentasComisiones, getClientesActivosForMonth,
+  parseNumES, formatARS, currentMonthKey,
 } from "@/lib/sheets";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ConsultorFilter } from "@/components/ui/ConsultorFilter";
@@ -41,10 +41,10 @@ export default async function AdministracionPage({
   const [cy, cm] = currMonth.split("-").map(Number);
   const prevMonth = cm === 1 ? `${cy - 1}-12` : `${cy}-${String(cm - 1).padStart(2, "0")}`;
 
-  const [statusRows, comisionesRows, eerrData, fechaActualizacion] = await Promise.all([
+  const [statusRows, comisionesRows, activosCount, fechaActualizacion] = await Promise.all([
     getStatusPago(),
     isAdmin ? getVentasComisiones() : Promise.resolve([]),
-    getEERRCCForMonth(prevMonth),
+    getClientesActivosForMonth(prevMonth),
     getStatusPagoFecha(),
   ]);
 
@@ -56,7 +56,6 @@ export default async function AdministracionPage({
   });
 
   const totalDeuda    = deudores.reduce((s, r) => s + parseNumES(r["Monto"]), 0);
-  const activosCount  = eerrData?.totalClientesActivos ?? null;
   const deudoresPct   = activosCount && activosCount > 0 ? (deudores.length / activosCount) * 100 : null;
 
   // Group by consultant

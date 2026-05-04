@@ -169,8 +169,7 @@ export async function getCashCollectedTimeSeries(): Promise<{ month: string; lab
 
 // ── EERR CC (devengado / counts by month) ─────────────────────────────────────
 // Row 35 = month headers: "ene 24", "feb 24", ..., "Anual", "ene 25", ...
-// Key rows: 688=Total Ingresos Devengados, 738=Clientes 1er programa,
-//           739=Clientes Renovados, 740=Downsell, 741=Total Clientes Activos
+// Key rows: 688=Total Ingresos Devengados, 723=Total Clientes Activos
 
 const MESES_ABREV: Record<string, string> = {
   ene: "01", feb: "02", mar: "03", abr: "04", may: "05", jun: "06",
@@ -184,6 +183,21 @@ function eerrAbrevToMonthKey(h: string): string | null {
   const month = MESES_ABREV[m[1]];
   if (!month) return null;
   return `20${m[2]}-${month}`;
+}
+
+// Reads Total Clientes Activos directly from row 723 (headers in row 35)
+export async function getClientesActivosForMonth(monthKey: string): Promise<number | null> {
+  // Fetch header row (35) + data row (723) in one call
+  const [headerRows, dataRows] = await Promise.all([
+    getSheet(process.env.SHEET_ID_EERR!, "'EERR CC'!A35:AZ35"),
+    getSheet(process.env.SHEET_ID_EERR!, "'EERR CC'!A723:AZ723"),
+  ]);
+  const headerRow = headerRows[0] ?? [];
+  const dataRow   = dataRows[0]   ?? [];
+  const colIndex  = headerRow.findIndex((v) => eerrAbrevToMonthKey(v ?? "") === monthKey);
+  if (colIndex === -1) return null;
+  const val = parseNumES(dataRow[colIndex] ?? "");
+  return val > 0 ? val : null;
 }
 
 export async function getEERRCCForMonth(monthKey: string): Promise<{
