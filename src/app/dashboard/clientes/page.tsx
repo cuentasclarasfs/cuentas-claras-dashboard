@@ -121,11 +121,14 @@ export default async function ClientesPage({
     const renov   = cl.filter((r) => r["Status"] === "Renovado").length;
     const bajo    = cl.filter((r) => r["Status"] === "Se bajó").length;
     const ryf     = cl.filter((r) => r["Status"] === "Renovó y se fue").length;
-    const base    = total - pp - ob;
+    const base       = total - pp - ob;                  // excl. activos
+    const baseRenov  = renov + ryf + termino;             // solo los que terminaron
     return {
       rango, total, pp, ob, termino, renov, bajo, ryf, base, sinRango,
-      renovaPct: base > 0 ? ((renov + ryf) / base) * 100 : null,
-      bajaPct:   base > 0 ? (bajo   / base) * 100 : null,
+      // % renovación: de los que terminaron el programa, cuántos siguieron
+      renovaPct: baseRenov > 0 ? ((renov + ryf) / baseRenov) * 100 : null,
+      // % churn: de todos los que resolvieron (excl. activos), cuántos se bajaron antes de terminar
+      bajaPct:   base > 0 ? (bajo / base) * 100 : null,
     };
   }
 
@@ -322,12 +325,12 @@ export default async function ClientesPage({
                 <th className="px-4 py-2.5 text-right text-xs font-semibold text-purple-500/70 uppercase">Renovado</th>
                 <th className="px-4 py-2.5 text-right text-xs font-semibold text-rose-500/70 uppercase">Se bajó</th>
                 <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase">Ren. y se fue</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold text-emerald-500/70 uppercase">% Renueva</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold text-rose-500/70 uppercase">% Se baja</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-emerald-500/70 uppercase">% Renovación</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-rose-500/70 uppercase">% Churn</th>
               </tr>
               <tr>
                 <td colSpan={9} className="px-4 pt-1 pb-2 text-[10px] text-slate-600">
-                  % calculado s/ total excluyendo PP activo y Onboarding
+                  % Renovación = (Renov + Ren.y fue) / (Renov + Ren.y fue + Terminó sin ren.) · % Churn = Se bajó / total excl. activos
                 </td>
               </tr>
             </thead>
@@ -392,15 +395,16 @@ export default async function ClientesPage({
                   {rangoTotals.ryf > 0 ? `${rangoTotals.ryf} (${rangoTotals.base > 0 ? ((rangoTotals.ryf/rangoTotals.base)*100).toFixed(0) : "—"}%)` : "—"}
                 </td>
                 <td className="px-4 py-2.5 text-right font-bold tabular-nums">
-                  {rangoTotals.base > 0 ? (
-                    <span className={((rangoTotals.renov+rangoTotals.ryf)/rangoTotals.base*100) >= 50 ? "text-emerald-400" : "text-amber-400"}>
-                      {(((rangoTotals.renov + rangoTotals.ryf) / rangoTotals.base) * 100).toFixed(0)}%
-                    </span>
-                  ) : "—"}
+                  {(() => {
+                    const base = rangoTotals.renov + rangoTotals.ryf + rangoTotals.termino;
+                    if (base === 0) return "—";
+                    const pct = ((rangoTotals.renov + rangoTotals.ryf) / base) * 100;
+                    return <span className={pct >= 50 ? "text-emerald-400" : pct >= 30 ? "text-amber-400" : "text-rose-400"}>{pct.toFixed(0)}%</span>;
+                  })()}
                 </td>
                 <td className="px-4 py-2.5 text-right font-bold tabular-nums">
                   {rangoTotals.base > 0 ? (
-                    <span className={(rangoTotals.bajo/rangoTotals.base*100) <= 20 ? "text-emerald-400" : "text-rose-400"}>
+                    <span className={(rangoTotals.bajo/rangoTotals.base*100) <= 20 ? "text-emerald-400" : (rangoTotals.bajo/rangoTotals.base*100) <= 40 ? "text-amber-400" : "text-rose-400"}>
                       {((rangoTotals.bajo / rangoTotals.base) * 100).toFixed(0)}%
                     </span>
                   ) : "—"}
