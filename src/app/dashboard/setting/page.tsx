@@ -356,21 +356,22 @@ export default async function SettingPage({
               </thead>
               <tbody>
                 {leadTypesADS.map((t, i) => {
-                  const prev   = leadTypesADSPrev[i];
-                  // % del total — current vs prev
-                  const pctTot     = tiposTotal > 0 && t.leads > 0 ? (t.leads / tiposTotal) * 100 : null;
-                  const pctTotPrev = tiposTotalPrev > 0 && prev.leads > 0 ? (prev.leads / tiposTotalPrev) * 100 : null;
-                  const pctTotDiff = pctTot !== null && pctTotPrev !== null ? pctTot - pctTotPrev : null;
-                  // % Ag/Leads — threshold coloring + vs prev
-                  const agLeadsNum  = t.leads > 0 ? (t.agendas / t.leads) * 100 : null;
-                  const agLeadsPrev = prev.leads > 0 ? (prev.agendas / prev.leads) * 100 : null;
-                  const agLeadsDiff = agLeadsNum !== null && agLeadsPrev !== null ? agLeadsNum - agLeadsPrev : null;
+                  // % del total — solo el valor, sin deltas
+                  const pctTot = tiposTotal > 0 && t.leads > 0 ? (t.leads / tiposTotal) * 100 : null;
+                  // % Ag/Leads — threshold coloring
+                  const agLeadsNum   = t.leads > 0 ? (t.agendas / t.leads) * 100 : null;
+                  // Promedio general Ag/Leads (todos los tipos combinados)
+                  const avgAgLeads   = tiposTotal > 0 && reunADS.length > 0 ? (reunADS.length / tiposTotal) * 100 : null;
                   const agLeadsColor = agLeadsNum === null ? "text-slate-500"
                     : agLeadsNum >= 25 ? "text-emerald-400"
                     : agLeadsNum >= 20 ? "text-amber-400"
                     : "text-rose-400";
+                  // Solo Tipo A: comparar vs promedio para el badge
+                  const isA       = t.tipo === "A";
+                  const diffVsAvg = isA && agLeadsNum !== null && avgAgLeads !== null ? agLeadsNum - avgAgLeads : null;
+                  const badgeColor = diffVsAvg === null ? "" : diffVsAvg > 5 ? "text-emerald-400" : diffVsAvg < -5 ? "text-rose-400" : "text-amber-400";
                   // % Cierre/Ag — threshold coloring
-                  const cierreAgNum  = t.agendas > 0 ? (t.cierres / t.agendas) * 100 : null;
+                  const cierreAgNum   = t.agendas > 0 ? (t.cierres / t.agendas) * 100 : null;
                   const cierreAgColor = cierreAgNum === null ? "text-slate-500"
                     : cierreAgNum >= 25 ? "text-emerald-400"
                     : cierreAgNum >= 15 ? "text-amber-400"
@@ -380,25 +381,16 @@ export default async function SettingPage({
                       <td className="px-4 py-2.5 font-bold text-white">Tipo {t.tipo}</td>
                       <td className="px-4 py-2.5 text-center text-slate-300">{t.leads || "—"}</td>
                       <td className="px-4 py-2.5 text-center text-slate-400">
-                        {pctTot !== null ? (
-                          <span>
-                            {pctTot.toFixed(1)}%
-                            {pctTotDiff !== null && Math.abs(pctTotDiff) >= 0.5 && (
-                              <span className={`ml-1 text-[10px] ${pctTotDiff > 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                                {pctTotDiff > 0 ? "▲" : "▼"}{Math.abs(pctTotDiff).toFixed(1)}pp
-                              </span>
-                            )}
-                          </span>
-                        ) : "—"}
+                        {pctTot !== null ? `${pctTot.toFixed(1)}%` : "—"}
                       </td>
                       <td className="px-4 py-2.5 text-center font-bold text-white">{t.agendas || "—"}</td>
                       <td className={`px-4 py-2.5 text-center font-semibold ${agLeadsColor}`}>
                         {agLeadsNum !== null ? (
-                          <span>
-                            {agLeadsNum.toFixed(1)}%
-                            {agLeadsDiff !== null && Math.abs(agLeadsDiff) >= 0.5 && (
-                              <span className={`ml-1 text-[10px] ${agLeadsDiff > 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                                {agLeadsDiff > 0 ? "▲" : "▼"}{Math.abs(agLeadsDiff).toFixed(1)}pp
+                          <span className="flex items-center justify-center gap-1.5 flex-wrap">
+                            <span>{agLeadsNum.toFixed(1)}%</span>
+                            {isA && avgAgLeads !== null && (
+                              <span className={`text-[10px] font-normal ${badgeColor}`}>
+                                prom {avgAgLeads.toFixed(1)}%
                               </span>
                             )}
                           </span>
@@ -440,6 +432,14 @@ export default async function SettingPage({
           )}
         </div>
 
+        {/* Pie charts — tipos distribution current vs prev */}
+        <div>
+          <TiposPieCharts
+            current={pieDataCurrent}
+            previous={pieDataPrev}
+          />
+        </div>
+
         {/* AD de origen — agendas por origen de ad */}
         {adOrigenStats.length > 0 && (
           <div>
@@ -476,14 +476,6 @@ export default async function SettingPage({
             </div>
           </div>
         )}
-
-        {/* Pie charts — tipos distribution current vs prev */}
-        <div>
-          <TiposPieCharts
-            current={pieDataCurrent}
-            previous={pieDataPrev}
-          />
-        </div>
 
         {/* Horizontal Funnel — THIRD */}
         <div>
