@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { ConsultorFilter } from "@/components/ui/ConsultorFilter";
 import { CopyDeudoresButton } from "@/components/ui/CopyDeudoresButton";
 import { Suspense } from "react";
+import Link from "next/link";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import type { Role } from "@/lib/roles";
 
@@ -27,11 +28,12 @@ function pct(n: number, total: number): string {
 export default async function AdministracionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ consultor?: string; closer?: string }>;
+  searchParams: Promise<{ consultor?: string; closer?: string; sinMonto?: string }>;
 }) {
   const sp = await searchParams;
   const selectedConsultor = sp.consultor ?? "";
   const selectedCloser    = sp.closer    ?? "";
+  const ocultarSinMonto   = sp.sinMonto === "ocultar";
 
   const user = await currentUser();
   const role = ((user?.publicMetadata?.role as Role) ?? "ops") as Role;
@@ -56,8 +58,11 @@ export default async function AdministracionPage({
     return !isNaN(dias) && dias < 0;
   });
 
-  const totalDeuda    = deudores.reduce((s, r) => s + parseNumES(r["Monto"]), 0);
-  const deudoresPct   = activosCount && activosCount > 0 ? (deudores.length / activosCount) * 100 : null;
+  const totalDeuda       = deudores.reduce((s, r) => s + parseNumES(r["Monto"]), 0);
+  const deudoresConMonto = deudores.filter((r) => parseNumES(r["Monto"]) > 0);
+  const deudoresSinMonto = deudores.filter((r) => parseNumES(r["Monto"]) === 0);
+  const deudoresPct      = activosCount && activosCount > 0
+    ? (deudoresConMonto.length / activosCount) * 100 : null;
 
   // Group by consultant
   const byCount: Record<string, number> = {};
@@ -85,13 +90,20 @@ export default async function AdministracionPage({
   const allConsultores = [...new Set(deudores.map((d) => d["Consultor"]).filter(Boolean))].sort();
   const allClosers     = [...new Set(deudores.map((d) => d["Closer"]).filter(Boolean))].sort();
 
-  // Filtered debtor list (both filters apply together)
+  // Filtered debtor list (all filters apply together)
   const filteredDeudores = deudores.filter((d) => {
     if (selectedConsultor && d["Consultor"] !== selectedConsultor) return false;
     if (selectedCloser    && d["Closer"]    !== selectedCloser)    return false;
+    if (ocultarSinMonto   && parseNumES(d["Monto"]) === 0)        return false;
     return true;
   });
-  const filteredTotal = filteredDeudores.reduce((s, r) => s + parseNumES(r["Monto"]), 0);
+  const filteredTotal    = filteredDeudores.reduce((s, r) => s + parseNumES(r["Monto"]), 0);
+  // Count sin-monto after consultor/closer filters (ignoring sinMonto toggle) — for the toggle label
+  const sinMontoCount    = deudores.filter((d) => {
+    if (selectedConsultor && d["Consultor"] !== selectedConsultor) return false;
+    if (selectedCloser    && d["Closer"]    !== selectedCloser)    return false;
+    return parseNumES(d["Monto"]) === 0;
+  }).length;
 
   // ── COMISIONES ────────────────────────────────────────────────────────────
 
@@ -137,13 +149,16 @@ export default async function AdministracionPage({
           <p className="text-xs text-slate-600 mt-1">mes actual</p>
         </div>
 
-        <div className={`card text-center ${deudores.length > 0 ? "border-rose-900/50" : ""}`}>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Deudores</p>
+        <div className={`card text-center ${deudoresConMonto.length > 0 ? "border-rose-900/50" : ""}`}>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Deudores c/ monto</p>
           <p className="text-3xl font-bold tabular-nums text-rose-400">
-            {deudores.length}
+            {deudoresConMonto.length}
           </p>
           {deudoresPct != null && (
             <p className="text-xs text-rose-400/60 mt-1">{deudoresPct.toFixed(1)}% de activos</p>
+          )}
+          {deudoresSinMonto.length > 0 && (
+            <p className="text-xs text-slate-600 mt-1">+ {deudoresSinMonto.length} sin monto aún</p>
           )}
         </div>
 
@@ -215,6 +230,31 @@ export default async function AdministracionPage({
             )}
           </div>
           <div className="flex items-center gap-3 flex-wrap">
+            {/* Toggle sin monto */}
+            {sinMontoCount > 0 && (() => {
+              const params = new URLSearchParams();
+              if (selectedConsultor) params.set("consultor", selectedConsultor);
+              if (selectedCloser)    params.set("closer",    selectedCloser);
+              if (!ocultarSinMonto)  params.set("sinMonto",  "ocultar");
+              const href = `/dashboard/administracion?${params.toString()}`;
+              return (
+                <Link
+                  href={href}
+                  className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${
+                    ocultarSinMonto
+                      ? "bg-brand-600/20 border-brand-600/50 text-brand-400"
+                      : "bg-surface-700 border-surface-600 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <span className={`w-3 h-3 rounded-sm border flex items-center justify-center flex-shrink-0 ${
+                    ocultarSinMonto ? "bg-brand-600 border-brand-600" : "border-slate-500"
+                  }`}>
+                    {ocultarSinMonto && <span className="text-white text-[8px] leading-none">✓</span>}
+                  </span>
+                  Ocultar sin monto ({sinMontoCount})
+                </Link>
+              );
+            })()}
             {allConsultores.length > 0 && (
               <Suspense fallback={null}>
                 <ConsultorFilter consultores={allConsultores} />
