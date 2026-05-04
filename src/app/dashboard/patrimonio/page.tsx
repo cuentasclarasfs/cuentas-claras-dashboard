@@ -177,7 +177,7 @@ export default async function PatrimonioPage() {
       {/* ── Gráfico de evolución ── */}
       <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Evolución histórica</h2>
       <div className="card mb-8">
-        <PatrimonioChart historia={historia} />
+        <PatrimonioChart historia={historia} assets={assets} />
       </div>
 
       {/* ── Detalle de activos ── */}
