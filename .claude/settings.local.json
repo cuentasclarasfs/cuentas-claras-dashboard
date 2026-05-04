@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/admin/Downloads/**)",
+      "Bash(python3 -c ' *)",
+      "Bash(pip3 install *)",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-turbopack)",
+      "Bash(npm --version)",
+      "Bash(export PATH=\"/usr/local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:$PATH\")",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:3000 -o /dev/null -w \"%{http_code}\")",
+      "Bash(curl -sv http://localhost:3001/dashboard/home)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(grep -n \"parseNumES\\\\|Gasto\\\\|\\\\\"\\\\$\\\\\"\" /Users/admin/Downloads/DASHBOARD/src/app/dashboard/marketing/page.tsx)",
+      "Bash(pkill -f \"next dev\")",
+      "Read(//opt/homebrew/**)",
+      "Read(//usr/local/bin/**)",
+      "Bash(brew list *)",
+      "Read(//usr/local/**)",
+      "Bash(brew info *)",
+      "Bash(curl -s \"http://localhost:3001/dashboard/setting?from=2026-04-01&to=2026-04-29\")",
+      "Bash(node -e ' *)",
+      "Bash(node --experimental-fetch -e ' *)",
+      "Bash(kill 34537 34536)",
+      "Bash(awk '{print $1, $11, $12}')",
+      "Bash(sed -i '' 's/{prevSeguidores > 0 && diffBadge\\(outboundLeads, prevSeguidores\\)}/{prevSeguidores > 0 \\\\&\\\\& <DiffBadge curr={outboundLeads} prev={prevSeguidores} \\\\/>}/g' src/app/dashboard/setting/page.tsx)",
+      "Bash(sed -i '' 's/{prevInicios > 0 && diffBadge\\(inicios, prevInicios\\)}/{prevInicios > 0 \\\\&\\\\& <DiffBadge curr={inicios} prev={prevInicios} \\\\/>}/g' src/app/dashboard/setting/page.tsx)",
+      "Bash(sed -i '' 's/{prevTienenNegocio > 0 && diffBadge\\(tienenNegocio, prevTienenNegocio\\)}/{prevTienenNegocio > 0 \\\\&\\\\& <DiffBadge curr={tienenNegocio} prev={prevTienenNegocio} \\\\/>}/g' src/app/dashboard/setting/page.tsx)",
+      "Bash(npx tailwindcss *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://localhost:3001/_next/static/development/_buildManifest.js\")",
+      "Bash(awk '{print $2, $10, $12}')",
+      "Bash(curl -s -o /dev/null -w \"Status: %{http_code}\\\\nSize: %{size_download}\\\\n\" \"http://localhost:3001/_next/static/css/app/layout.css\")",
+      "Bash(curl -s -o /dev/null -w \"Status: %{http_code}\\\\n\" \"http://localhost:3000/_next/static/css/app/layout.css\")",
+      "Bash(kill 48413 48412)",
+      "Bash(awk '{print $2, $10}')",
+      "Bash(npx tsx -e ' *)",
+      "Bash(curl -s http://localhost:3000/dashboard/administracion)"
+    ]
+  }
+}

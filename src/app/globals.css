@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --sidebar-width: 240px;
+  }
+  body {
+    @apply bg-surface-950 text-slate-100 antialiased;
+    font-family: var(--font-ubuntu), Ubuntu, system-ui, sans-serif;
+  }
+  * {
+    @apply border-surface-800;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-poppins), Poppins, system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface-900 border border-surface-800 rounded-xl p-5;
+  }
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+}
