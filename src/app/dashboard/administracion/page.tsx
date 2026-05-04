@@ -4,6 +4,7 @@ import {
 } from "@/lib/sheets";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ConsultorFilter } from "@/components/ui/ConsultorFilter";
+import { CopyDeudoresButton } from "@/components/ui/CopyDeudoresButton";
 import { Suspense } from "react";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import type { Role } from "@/lib/roles";
@@ -281,6 +282,25 @@ export default async function AdministracionPage({
                 </tr>
               </tfoot>
             </table>
+          </div>
+        )}
+
+        {/* Copy for WhatsApp */}
+        {filteredDeudores.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-surface-700/40 flex justify-end">
+            <CopyDeudoresButton
+              deudores={filteredDeudores
+                .sort((a, b) => parseFloat(a["Dias"]) - parseFloat(b["Dias"]))
+                .map((d) => ({
+                  cliente:   d["Cliente"],
+                  consultor: d["Consultor"] || "",
+                  closer:    d["Closer"]    || "",
+                  dias:      Math.abs(parseFloat(d["Dias"]) || 0),
+                  monto:     parseNumES(d["Monto"]),
+                }))}
+              totalDeuda={filteredTotal}
+              fechaActualizacion={fechaActualizacion}
+            />
           </div>
         )}
       </div>
