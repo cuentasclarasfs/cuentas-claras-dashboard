@@ -113,10 +113,7 @@ export default async function ClientesPage({
   const getRango = (r: Record<string, string>) =>
     (r["Rango de Facturación"] || r["Rango de Facturacion"] || "").trim();
 
-  const allRangos = [...new Set(statusRows.map(getRango).filter(Boolean))].sort();
-
-  const rangoStats = allRangos.map((rango) => {
-    const cl      = statusRows.filter((r) => getRango(r) === rango);
+  function buildRangoRow(cl: Record<string, string>[], rango: string, sinRango = false) {
     const total   = cl.length;
     const pp      = cl.filter((r) => r["Status"] === "Primer Programa").length;
     const ob      = cl.filter((r) => r["Status"] === "Onboarding").length;
@@ -124,13 +121,24 @@ export default async function ClientesPage({
     const renov   = cl.filter((r) => r["Status"] === "Renovado").length;
     const bajo    = cl.filter((r) => r["Status"] === "Se bajó").length;
     const ryf     = cl.filter((r) => r["Status"] === "Renovó y se fue").length;
-    const base    = total - pp - ob; // excl. activos en primer programa y onboarding
+    const base    = total - pp - ob;
     return {
-      rango, total, pp, ob, termino, renov, bajo, ryf, base,
+      rango, total, pp, ob, termino, renov, bajo, ryf, base, sinRango,
       renovaPct: base > 0 ? ((renov + ryf) / base) * 100 : null,
       bajaPct:   base > 0 ? (bajo   / base) * 100 : null,
     };
-  });
+  }
+
+  // Use statusFiltrado so the asesor filter applies
+  const allRangos = [...new Set(statusFiltrado.map(getRango).filter(Boolean))].sort();
+  const sinRangoRows = statusFiltrado.filter((r) => !getRango(r) && (r["Status"] || "").trim());
+
+  const rangoStats = [
+    ...allRangos.map((rango) =>
+      buildRangoRow(statusFiltrado.filter((r) => getRango(r) === rango), rango)
+    ),
+    ...(sinRangoRows.length > 0 ? [buildRangoRow(sinRangoRows, "Sin Rango", true)] : []),
+  ];
 
   // Totals row
   const rangoTotals = rangoStats.reduce(
@@ -296,9 +304,13 @@ export default async function ClientesPage({
 
       {/* ── ANÁLISIS POR RANGO DE FACTURACIÓN ── */}
       {rangoStats.length > 0 && (<>
-        <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">
-          Análisis por Rango de Facturación
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500">
+            Análisis por Rango de Facturación
+            {selectedAsesor && <span className="ml-2 normal-case text-brand-400 font-normal text-xs">— {selectedAsesor}</span>}
+          </h2>
+          <AsesorFilter asesores={allAsesores} />
+        </div>
         <div className="card mb-10 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -321,8 +333,8 @@ export default async function ClientesPage({
             </thead>
             <tbody>
               {rangoStats.map((r) => (
-                <tr key={r.rango} className="border-b border-surface-800/50 hover:bg-surface-800/30">
-                  <td className="px-4 py-2.5 font-medium text-white">{r.rango}</td>
+                <tr key={r.rango} className={`border-b border-surface-800/50 hover:bg-surface-800/30 ${r.sinRango ? "opacity-60" : ""}`}>
+                  <td className={`px-4 py-2.5 font-medium ${r.sinRango ? "text-slate-500 italic" : "text-white"}`}>{r.rango}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums text-slate-300">{r.total}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums text-emerald-400">{r.pp > 0 ? r.pp : "—"}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums text-amber-400">
