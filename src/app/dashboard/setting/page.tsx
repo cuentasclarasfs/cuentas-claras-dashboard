@@ -121,20 +121,22 @@ export default async function SettingPage({
   const byCanal = (canal: string) =>
     reuniones.filter((r) => r["Canal"].trim().toLowerCase() === canal.trim().toLowerCase());
 
+  // ── Pre-compute Outbound counts (needed in Section 1 for Resumen) ─────────
+  const tienenNegocioResumen = sumInt(analisisFMA, "Tienen negocio");
+
   // ── SECTION 1: Resumen total ──────────────────────────────────────────────
 
   // Leads for each channel (only ADS IG and Outbound have lead counts)
   const totalLeads    = sumInt(msgIG, "Total leads");
-  const outboundLeads = sumInt(analisisFMA, "Inicios");
 
   const estrategias = [
-    { nombre: "ADS IG",      canal: "ADS Mje IG",   leads: totalLeads    || null },
+    { nombre: "ADS IG",      canal: "ADS Mje IG",   leads: totalLeads       || null },
     { nombre: "Orgánico",    canal: "Organico",      leads: null },
     { nombre: "Comentarios", canal: "Comentarios",   leads: null },
     { nombre: "VSL Insta",   canal: "VSL Insta",     leads: null },
     { nombre: "VSL",         canal: "Publi a VSL",   leads: null },
     { nombre: "Link Perfil", canal: "Link Perfil",   leads: null },
-    { nombre: "Outbound",    canal: "Outbound",       leads: outboundLeads || null },
+    { nombre: "Outbound",    canal: "Outbound",       leads: tienenNegocioResumen || null },
     { nombre: "Historias",   canal: "Historias",      leads: null },
   ].map((e) => {
     const rows    = byCanal(e.canal);
@@ -163,19 +165,22 @@ export default async function SettingPage({
   }));
   const tiposTotal = leadTypesADS.reduce((s, t) => s + t.leads, 0);
 
-  // Lead type summary — previous period (for pie chart comparison)
-  const tiposLeadsPrev = tiposLeadsRaw.filter((r) => inRPrev(r["Fecha"]));
-  const leadTypesADSPrev = LEAD_TIPOS.map((tipo) => ({
+  // Lead type summary — previous period (for pie chart comparison + column deltas)
+  const tiposLeadsPrev    = tiposLeadsRaw.filter((r) => inRPrev(r["Fecha"]));
+  const reunADSPrev       = reunionesRaw.filter((r) => r["Prospecto"] && inRPrev(r["Fecha de la agenda"]) && r["Canal"].trim().toLowerCase() === "ads mje ig");
+  const tiposTotalPrev    = tiposLeadsPrev.reduce((s, r) => s + (parseInt(r["Tipo A"]) || 0) + (parseInt(r["Tipo B"]) || 0) + (parseInt(r["Tipo C"]) || 0) + (parseInt(r["Tipo D"]) || 0), 0);
+  const leadTypesADSPrev  = LEAD_TIPOS.map((tipo) => ({
     tipo,
-    leads: tiposLeadsPrev.reduce((s, r) => s + (parseInt(r[`Tipo ${tipo}`]) || 0), 0),
+    leads:   tiposLeadsPrev.reduce((s, r) => s + (parseInt(r[`Tipo ${tipo}`]) || 0), 0),
+    agendas: reunADSPrev.filter((r) => matchTipo(r, tipo)).length,
   }));
 
   // Pie chart data
   const TIPO_COLORS: Record<string, string> = {
-    A: "#10b981", // emerald-500
-    B: "#6ee7b7", // emerald-300
-    C: "#fbbf24", // amber-400
-    D: "#f43f5e", // rose-500
+    A: "#10b981", // emerald-500 — verde
+    B: "#eab308", // yellow-500 — amarillo
+    C: "#f87171", // red-400    — rojo clarito
+    D: "#9f1239", // rose-900   — bordo
   };
   const pieDataCurrent = leadTypesADS.map((t) => ({
     name: `Tipo ${t.tipo}`,
@@ -189,6 +194,22 @@ export default async function SettingPage({
   }));
   const inversionPorTipoA = leadTypesADS[0].leads > 0 && inversion > 0
     ? inversion / leadTypesADS[0].leads : null;
+
+  // AD de origen — agendas ADS Mje IG grouped by col E
+  const adOrigenStats = (() => {
+    const mapa = new Map<string, { agendas: number; cierres: number }>();
+    for (const r of reunADS) {
+      const ad = (r["AD de origen"] ?? "").trim();
+      if (!ad) continue;
+      const entry = mapa.get(ad) ?? { agendas: 0, cierres: 0 };
+      entry.agendas++;
+      if (isClosedStatus(r["Status"])) entry.cierres++;
+      mapa.set(ad, entry);
+    }
+    return [...mapa.entries()]
+      .map(([ad, v]) => ({ ad, ...v }))
+      .sort((a, b) => b.agendas - a.agendas);
+  })();
 
   // Cumulative funnel (survivors at each stage = everyone who reached that stage OR beyond)
   const funnelSteps = [
@@ -215,6 +236,15 @@ export default async function SettingPage({
     return { origen, agendas, cierres, byTipo };
   });
 
+  // FMA prev period
+  const byCanaPrev = (canal: string) =>
+    reunionesRaw.filter((r) => r["Prospecto"] && inRPrev(r["Fecha de la agenda"]) && r["Canal"].trim().toLowerCase() === canal.trim().toLowerCase());
+  const fmaOriginsPrev = FMA_ORIGINS.map((origen) => ({
+    origen,
+    agendas: byCanaPrev(origen).length,
+    cierres: byCanaPrev(origen).filter((r) => isClosedStatus(r["Status"])).length,
+  }));
+
   // ── SECTION 4: Outbound ───────────────────────────────────────────────────
 
   const inicios       = sumInt(analisisFMA, "Inicios");
@@ -229,8 +259,11 @@ export default async function SettingPage({
   const prevInicios       = sumInt(analisisPrev, "Inicios");
   const prevTienenNegocio = sumInt(analisisPrev, "Tienen negocio");
 
-  const reunOut    = byCanal("Outbound");
-  const cierresOut = reunOut.filter((r) => isClosedStatus(r["Status"])).length;
+  const reunOut     = byCanal("Outbound");
+  const cierresOut  = reunOut.filter((r) => isClosedStatus(r["Status"])).length;
+  const neg1Plus    = neg13 + neg3plus; // 1 año o más
+  const reunOutPrev = reunionesRaw.filter((r) => r["Prospecto"] && inRPrev(r["Fecha de la agenda"]) && r["Canal"].trim().toLowerCase() === "outbound");
+  const cierresOutPrev = reunOutPrev.filter((r) => isClosedStatus(r["Status"])).length;
   const outByTipo  = LEAD_TIPOS.map((tipo) => ({
     tipo,
     agendas: reunOut.filter((r) => matchTipo(r, tipo)).length,
@@ -322,17 +355,62 @@ export default async function SettingPage({
                 </tr>
               </thead>
               <tbody>
-                {leadTypesADS.map((t) => (
-                  <tr key={t.tipo} className="border-b border-surface-800/50 hover:bg-surface-800/30">
-                    <td className="px-4 py-2.5 font-bold text-white">Tipo {t.tipo}</td>
-                    <td className="px-4 py-2.5 text-center text-slate-300">{t.leads || "—"}</td>
-                    <td className="px-4 py-2.5 text-center text-slate-500">{t.leads ? pct(t.leads, tiposTotal) : "—"}</td>
-                    <td className="px-4 py-2.5 text-center font-bold text-white">{t.agendas || "—"}</td>
-                    <td className="px-4 py-2.5 text-center text-brand-400">{t.leads ? pct(t.agendas, t.leads) : "—"}</td>
-                    <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{t.cierres || "—"}</td>
-                    <td className="px-4 py-2.5 text-center text-emerald-400">{pct(t.cierres, t.agendas)}</td>
-                  </tr>
-                ))}
+                {leadTypesADS.map((t, i) => {
+                  const prev   = leadTypesADSPrev[i];
+                  // % del total — current vs prev
+                  const pctTot     = tiposTotal > 0 && t.leads > 0 ? (t.leads / tiposTotal) * 100 : null;
+                  const pctTotPrev = tiposTotalPrev > 0 && prev.leads > 0 ? (prev.leads / tiposTotalPrev) * 100 : null;
+                  const pctTotDiff = pctTot !== null && pctTotPrev !== null ? pctTot - pctTotPrev : null;
+                  // % Ag/Leads — threshold coloring + vs prev
+                  const agLeadsNum  = t.leads > 0 ? (t.agendas / t.leads) * 100 : null;
+                  const agLeadsPrev = prev.leads > 0 ? (prev.agendas / prev.leads) * 100 : null;
+                  const agLeadsDiff = agLeadsNum !== null && agLeadsPrev !== null ? agLeadsNum - agLeadsPrev : null;
+                  const agLeadsColor = agLeadsNum === null ? "text-slate-500"
+                    : agLeadsNum >= 25 ? "text-emerald-400"
+                    : agLeadsNum >= 20 ? "text-amber-400"
+                    : "text-rose-400";
+                  // % Cierre/Ag — threshold coloring
+                  const cierreAgNum  = t.agendas > 0 ? (t.cierres / t.agendas) * 100 : null;
+                  const cierreAgColor = cierreAgNum === null ? "text-slate-500"
+                    : cierreAgNum >= 25 ? "text-emerald-400"
+                    : cierreAgNum >= 15 ? "text-amber-400"
+                    : "text-rose-400";
+                  return (
+                    <tr key={t.tipo} className="border-b border-surface-800/50 hover:bg-surface-800/30">
+                      <td className="px-4 py-2.5 font-bold text-white">Tipo {t.tipo}</td>
+                      <td className="px-4 py-2.5 text-center text-slate-300">{t.leads || "—"}</td>
+                      <td className="px-4 py-2.5 text-center text-slate-400">
+                        {pctTot !== null ? (
+                          <span>
+                            {pctTot.toFixed(1)}%
+                            {pctTotDiff !== null && Math.abs(pctTotDiff) >= 0.5 && (
+                              <span className={`ml-1 text-[10px] ${pctTotDiff > 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                                {pctTotDiff > 0 ? "▲" : "▼"}{Math.abs(pctTotDiff).toFixed(1)}pp
+                              </span>
+                            )}
+                          </span>
+                        ) : "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-center font-bold text-white">{t.agendas || "—"}</td>
+                      <td className={`px-4 py-2.5 text-center font-semibold ${agLeadsColor}`}>
+                        {agLeadsNum !== null ? (
+                          <span>
+                            {agLeadsNum.toFixed(1)}%
+                            {agLeadsDiff !== null && Math.abs(agLeadsDiff) >= 0.5 && (
+                              <span className={`ml-1 text-[10px] ${agLeadsDiff > 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                                {agLeadsDiff > 0 ? "▲" : "▼"}{Math.abs(agLeadsDiff).toFixed(1)}pp
+                              </span>
+                            )}
+                          </span>
+                        ) : "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{t.cierres || "—"}</td>
+                      <td className={`px-4 py-2.5 text-center font-semibold ${cierreAgColor}`}>
+                        {cierreAgNum !== null ? `${cierreAgNum.toFixed(1)}%` : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
                 {/* Total tipos */}
                 <tr className="bg-surface-800/40 border-t border-surface-600/50">
                   <td className="px-4 py-2.5 font-bold text-white">Total calificados</td>
@@ -361,6 +439,43 @@ export default async function SettingPage({
             </div>
           )}
         </div>
+
+        {/* AD de origen — agendas por origen de ad */}
+        {adOrigenStats.length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">AD de origen — agendas</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-surface-700">
+                    {["AD de origen", "Agendas", "Cierres", "% Cierre"].map((h) => (
+                      <th key={h} className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase text-center first:text-left">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {adOrigenStats.map((a) => {
+                    const crNum = a.agendas > 0 ? (a.cierres / a.agendas) * 100 : null;
+                    const crColor = crNum === null ? "text-slate-500"
+                      : crNum >= 25 ? "text-emerald-400"
+                      : crNum >= 15 ? "text-amber-400"
+                      : "text-rose-400";
+                    return (
+                      <tr key={a.ad} className="border-b border-surface-800/50 hover:bg-surface-800/30">
+                        <td className="px-4 py-2.5 font-medium text-slate-300">{a.ad}</td>
+                        <td className="px-4 py-2.5 text-center font-bold text-white">{a.agendas}</td>
+                        <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{a.cierres || "—"}</td>
+                        <td className={`px-4 py-2.5 text-center font-semibold ${crColor}`}>
+                          {crNum !== null ? `${crNum.toFixed(1)}%` : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Pie charts — tipos distribution current vs prev */}
         <div>
@@ -448,38 +563,70 @@ export default async function SettingPage({
               </tr>
             </thead>
             <tbody>
-              {fmaOrigins.map((o) => (
-                <tr key={o.origen} className="border-b border-surface-800/50 hover:bg-surface-800/30">
-                  <td className="px-4 py-3 font-medium text-slate-300">{o.origen}</td>
-                  <td className="px-4 py-3 text-center font-bold text-white">{o.agendas || "—"}</td>
-                  <td className="px-4 py-3 text-center font-bold text-emerald-400">{o.cierres || "—"}</td>
-                  <td className="px-4 py-3 text-center text-emerald-400">{pct(o.cierres, o.agendas)}</td>
-                  <td className="px-4 py-3 text-center">
-                    {o.byTipo.length > 0 ? (
-                      <span className="flex gap-1.5 justify-center flex-wrap">
-                        {o.byTipo.map((t) => (
-                          <span key={t.tipo} className="text-[11px] bg-surface-800 border border-surface-700 rounded px-2 py-0.5">
-                            <span className="text-slate-500">T{t.tipo}:</span>
-                            <span className="text-white ml-1 font-semibold">{t.agendas}</span>
-                            {t.cierres > 0 && <span className="text-emerald-400 ml-1">({t.cierres}✓)</span>}
-                          </span>
-                        ))}
-                      </span>
-                    ) : "—"}
-                  </td>
-                </tr>
-              ))}
-              {(() => {
-                const tAg = fmaOrigins.reduce((s, o) => s + o.agendas, 0);
-                const tCi = fmaOrigins.reduce((s, o) => s + o.cierres, 0);
+              {fmaOrigins.map((o, i) => {
+                const op = fmaOriginsPrev[i];
+                const agDiff  = op.agendas > 0 ? o.agendas - op.agendas : null;
+                const ciDiff  = op.cierres > 0 || o.cierres > 0 ? o.cierres - op.cierres : null;
                 return (
-                  <tr className="bg-surface-800/40 border-t border-surface-600/50">
-                    <td className="px-4 py-3 font-bold text-white">Total FMA</td>
-                    <td className="px-4 py-3 text-center font-bold text-white">{tAg || "—"}</td>
-                    <td className="px-4 py-3 text-center font-bold text-emerald-400">{tCi || "—"}</td>
-                    <td className="px-4 py-3 text-center font-bold text-emerald-400">{pct(tCi, tAg)}</td>
-                    <td />
+                  <tr key={o.origen} className="border-b border-surface-800/50 hover:bg-surface-800/30">
+                    <td className="px-4 py-3 font-medium text-slate-300">{o.origen}</td>
+                    <td className="px-4 py-3 text-center font-bold text-white">
+                      {o.agendas || "—"}
+                      {agDiff !== null && (
+                        <span className={`ml-1.5 text-[10px] font-semibold ${agDiff >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                          {agDiff >= 0 ? "▲" : "▼"}{Math.abs(agDiff)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center font-bold text-emerald-400">
+                      {o.cierres || "—"}
+                      {ciDiff !== null && (
+                        <span className={`ml-1.5 text-[10px] font-semibold ${ciDiff >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                          {ciDiff >= 0 ? "▲" : "▼"}{Math.abs(ciDiff)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center text-emerald-400">{pct(o.cierres, o.agendas)}</td>
+                    <td className="px-4 py-3 text-center">
+                      {o.byTipo.length > 0 ? (
+                        <span className="flex gap-1.5 justify-center flex-wrap">
+                          {o.byTipo.map((t) => (
+                            <span key={t.tipo} className="text-[11px] bg-surface-800 border border-surface-700 rounded px-2 py-0.5">
+                              <span className="text-slate-500">T{t.tipo}:</span>
+                              <span className="text-white ml-1 font-semibold">{t.agendas}</span>
+                              {t.cierres > 0 && <span className="text-emerald-400 ml-1">({t.cierres}✓)</span>}
+                            </span>
+                          ))}
+                        </span>
+                      ) : "—"}
+                    </td>
                   </tr>
+                );
+              })}
+              {(() => {
+                const tAg  = fmaOrigins.reduce((s, o) => s + o.agendas, 0);
+                const tCi  = fmaOrigins.reduce((s, o) => s + o.cierres, 0);
+                const tAgP = fmaOriginsPrev.reduce((s, o) => s + o.agendas, 0);
+                const tCiP = fmaOriginsPrev.reduce((s, o) => s + o.cierres, 0);
+                return (
+                  <>
+                    <tr className="bg-surface-800/40 border-t border-surface-600/50">
+                      <td className="px-4 py-3 font-bold text-white">Total FMA</td>
+                      <td className="px-4 py-3 text-center font-bold text-white">{tAg || "—"}</td>
+                      <td className="px-4 py-3 text-center font-bold text-emerald-400">{tCi || "—"}</td>
+                      <td className="px-4 py-3 text-center font-bold text-emerald-400">{pct(tCi, tAg)}</td>
+                      <td />
+                    </tr>
+                    {tAgP > 0 && (
+                      <tr className="border-t border-surface-700/30 bg-surface-900/40">
+                        <td className="px-4 py-2 text-[11px] text-slate-600 italic">Período ant.</td>
+                        <td className="px-4 py-2 text-center text-[11px] text-slate-600">{tAgP}</td>
+                        <td className="px-4 py-2 text-center text-[11px] text-slate-600">{tCiP || "—"}</td>
+                        <td className="px-4 py-2 text-center text-[11px] text-slate-600">{pct(tCiP, tAgP)}</td>
+                        <td />
+                      </tr>
+                    )}
+                  </>
                 );
               })()}
             </tbody>
@@ -566,13 +713,16 @@ export default async function SettingPage({
           <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Agendas y cierres</h3>
           <div className="grid grid-cols-3 gap-3 mb-5">
             {[
-              { label: "Agendas", value: reunOut.length, color: "text-white" },
-              { label: "Cierres", value: cierresOut, color: "text-emerald-400" },
-              { label: "CR%",     value: pct(cierresOut, reunOut.length), color: "text-emerald-400" },
+              { label: "Agendas", value: reunOut.length, prev: reunOutPrev.length, color: "text-white" },
+              { label: "Cierres", value: cierresOut, prev: cierresOutPrev, color: "text-emerald-400" },
+              { label: "CR%",     value: pct(cierresOut, reunOut.length), prev: pct(cierresOutPrev, reunOutPrev.length), color: "text-emerald-400" },
             ].map((k) => (
               <div key={k.label} className="bg-surface-800/50 rounded-xl p-3 text-center border border-surface-700/40">
                 <p className="text-[10px] text-slate-500 uppercase mb-1">{k.label}</p>
                 <p className={`text-xl font-bold ${k.color}`}>{k.value || "—"}</p>
+                {k.prev !== undefined && k.prev !== "—" && (
+                  <p className="text-[10px] text-slate-600 mt-0.5">ant: {k.prev}</p>
+                )}
               </div>
             ))}
           </div>
@@ -599,6 +749,19 @@ export default async function SettingPage({
                 </tbody>
               </table>
             </>
+          )}
+          {/* Agendas como % de negocios 1yr+ */}
+          {neg1Plus > 0 && (
+            <div className="mt-4 pt-3 border-t border-surface-700/40">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Conversión sobre negocios ≥1 año</p>
+              <p className="text-sm text-slate-300">
+                <span className="font-bold text-white">{reunOut.length}</span>
+                <span className="text-slate-500 mx-1.5">agendas</span>
+                <span className={`font-semibold ${reunOut.length / neg1Plus >= 0.15 ? "text-emerald-400" : "text-amber-400"}`}>
+                  ({((reunOut.length / neg1Plus) * 100).toFixed(1)}% de {neg1Plus} con negocio ≥1 año)
+                </span>
+              </p>
+            </div>
           )}
           {outByTipo.length === 0 && reunOut.length === 0 && (
             <p className="text-sm text-slate-500 text-center py-4">Sin datos en el período</p>

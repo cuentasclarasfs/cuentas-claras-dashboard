@@ -470,6 +470,7 @@ export async function getVentasReuniones(): Promise<Record<string, string>[]> {
   return rows.slice(1).map((row) => ({
     "Prospecto":            row[1]  ?? "",  // B
     "Canal":                row[3]  ?? "",  // D
+    "AD de origen":         row[4]  ?? "",  // E
     "Tipo de lead":         row[9]  ?? "",  // J
     "Fecha de la agenda":   row[10] ?? "",  // K
     "Fecha de reunion":     row[11] ?? "",  // L
@@ -477,6 +478,7 @@ export async function getVentasReuniones(): Promise<Record<string, string>[]> {
     "Facturacion":          row[14] ?? "",  // O
     "Status":               row[17] ?? "",  // R
     "Cash Collected":       row[19] ?? "",  // T
+    "Antigüedad negocio":   row[8]  ?? "",  // I
   }));
 }
 

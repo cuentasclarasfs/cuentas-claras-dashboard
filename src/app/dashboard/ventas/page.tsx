@@ -344,6 +344,74 @@ export default async function VentasPage({
         </div>
       )}
 
+      {/* ── 3. ANTIGÜEDAD DEL NEGOCIO ── */}
+      {(() => {
+        const ANT_ORDER = ["< 1 año", "1-3 años", "> 3 años"];
+        const mapa = new Map<string, { agendas: number; cierres: number }>();
+        for (const r of reuniones) {
+          const ant = (r["Antigüedad negocio"] ?? "").trim();
+          if (!ant) continue;
+          const entry = mapa.get(ant) ?? { agendas: 0, cierres: 0 };
+          entry.agendas++;
+          if (isClosedStatus(r["Status"])) entry.cierres++;
+          mapa.set(ant, entry);
+        }
+        if (mapa.size === 0) return null;
+        const rows = [...ANT_ORDER, ...[...mapa.keys()].filter((k) => !ANT_ORDER.includes(k))]
+          .filter((k) => mapa.has(k))
+          .map((k) => ({ ant: k, ...mapa.get(k)! }));
+        const totAg = rows.reduce((s, r) => s + r.agendas, 0);
+        const totCi = rows.reduce((s, r) => s + r.cierres, 0);
+        return (
+          <>
+            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 mt-8">Antigüedad del Negocio</h2>
+            <div className="card mb-8">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-surface-700">
+                      {["Antigüedad", "Agendas", "Cierres", "CR%"].map((h) => (
+                        <th key={h} className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase text-center first:text-left">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => {
+                      const crNum   = r.agendas > 0 ? (r.cierres / r.agendas) * 100 : null;
+                      const crColor = crNum === null ? "text-slate-500"
+                        : crNum >= 30 ? "text-emerald-400"
+                        : crNum >= 20 ? "text-amber-400"
+                        : "text-rose-400";
+                      return (
+                        <tr key={r.ant} className="border-b border-surface-800/50 hover:bg-surface-800/30">
+                          <td className="px-4 py-3 font-medium text-slate-300">{r.ant}</td>
+                          <td className="px-4 py-3 text-center font-bold text-white">{r.agendas}</td>
+                          <td className="px-4 py-3 text-center font-bold text-emerald-400">{r.cierres || "—"}</td>
+                          <td className={`px-4 py-3 text-center font-semibold ${crColor}`}>
+                            {crNum !== null ? `${crNum.toFixed(1)}%` : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-surface-800/40 border-t border-surface-600/50">
+                      <td className="px-4 py-3 font-bold text-white">Total</td>
+                      <td className="px-4 py-3 text-center font-bold text-white">{totAg}</td>
+                      <td className="px-4 py-3 text-center font-bold text-emerald-400">{totCi || "—"}</td>
+                      <td className={`px-4 py-3 text-center font-bold ${totAg > 0 && (totCi/totAg)*100 >= 30 ? "text-emerald-400" : "text-amber-400"}`}>
+                        {totAg > 0 ? `${((totCi / totAg) * 100).toFixed(1)}%` : "—"}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <p className="text-[10px] text-slate-600 mt-2 px-1">Filtrado por fecha de reunión · col I de Resumen Reuniones</p>
+            </div>
+          </>
+        );
+      })()}
+
       {/* ── 3. CANALES ── */}
       <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Clientes por Canal</h2>
       <div className="card">
