@@ -513,6 +513,12 @@ export function filterReuniones(
 
 // ── ADMIN ─────────────────────────────────────────────────────────────────────
 
+// Returns the last-update date stored in A1 of "Status y pago"
+export async function getStatusPagoFecha(): Promise<string | null> {
+  const rows = await getSheet(process.env.SHEET_ID_STATUS_CLIENTES!, "Status y pago!A1");
+  return rows?.[0]?.[0]?.trim() || null;
+}
+
 // Status y pago — A1 = last-update date (meta), row 2 = headers, row 3+ = data
 // A=Cliente, C=Consultor, M=DíasProxPago (negative = debtor), N=MontoAdeudado
 export async function getStatusPago(): Promise<Record<string, string>[]> {

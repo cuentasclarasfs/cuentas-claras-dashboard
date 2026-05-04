@@ -1,5 +1,5 @@
 import {
-  getStatusPago, getVentasComisiones, getEERRCCForMonth,
+  getStatusPago, getStatusPagoFecha, getVentasComisiones, getEERRCCForMonth,
   isClosedStatus, parseNumES, formatARS, currentMonthKey,
 } from "@/lib/sheets";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -41,10 +41,11 @@ export default async function AdministracionPage({
   const [cy, cm] = currMonth.split("-").map(Number);
   const prevMonth = cm === 1 ? `${cy - 1}-12` : `${cy}-${String(cm - 1).padStart(2, "0")}`;
 
-  const [statusRows, comisionesRows, eerrData] = await Promise.all([
+  const [statusRows, comisionesRows, eerrData, fechaActualizacion] = await Promise.all([
     getStatusPago(),
     isAdmin ? getVentasComisiones() : Promise.resolve([]),
     getEERRCCForMonth(prevMonth),
+    getStatusPagoFecha(),
   ]);
 
   // ── COBROS ────────────────────────────────────────────────────────────────
@@ -200,12 +201,19 @@ export default async function AdministracionPage({
       {/* Filter + Detail Table */}
       <div className="card mb-8">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
-            Detalle de deudores
-            {selectedConsultor && (
-              <span className="ml-2 normal-case text-brand-400">— {selectedConsultor}</span>
+          <div>
+            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
+              Detalle de deudores
+              {selectedConsultor && (
+                <span className="ml-2 normal-case text-brand-400">— {selectedConsultor}</span>
+              )}
+            </h3>
+            {fechaActualizacion && (
+              <p className="text-[10px] text-slate-600 mt-0.5">
+                Actualizado al <span className="text-slate-500 font-medium">{fechaActualizacion}</span>
+              </p>
             )}
-          </h3>
+          </div>
           <div className="flex items-center gap-3 flex-wrap">
             {allConsultores.length > 0 && (
               <Suspense fallback={null}>
