@@ -184,8 +184,11 @@ export default async function SettingPage({
   const tiposLeads2026   = tiposLeadsRaw.filter((r) => parseYear(r["Fecha"] ?? "") >= 2026);
   const reunADS2026      = reunionesRaw.filter((r) => r["Prospecto"] && r["Canal"].trim().toLowerCase() === "ads mje ig" && parseYear(r["Fecha de la agenda"] ?? "") >= 2026);
   const tipoALeads2026   = tiposLeads2026.reduce((s, r) => s + (parseInt(r["Tipo A"]) || 0), 0);
-  const tipoAAgendas2026 = reunADS2026.filter((r) => matchTipo(r, "A")).length;
-  const tipoAHistAvg     = tipoALeads2026 > 0 ? (tipoAAgendas2026 / tipoALeads2026) * 100 : null;
+  const reunADS2026TipoA = reunADS2026.filter((r) => matchTipo(r, "A"));
+  const tipoAAgendas2026 = reunADS2026TipoA.length;
+  const tipoACierres2026 = reunADS2026TipoA.filter((r) => isClosedStatus(r["Status"])).length;
+  const tipoAHistAvg       = tipoALeads2026 > 0 ? (tipoAAgendas2026 / tipoALeads2026) * 100 : null;
+  const tipoAHistCierreAvg = tipoAAgendas2026 > 0 ? (tipoACierres2026 / tipoAAgendas2026) * 100 : null;
 
   // Pie chart data
   const TIPO_COLORS: Record<string, string> = {
@@ -411,7 +414,16 @@ export default async function SettingPage({
                       </td>
                       <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{t.cierres || "—"}</td>
                       <td className={`px-4 py-2.5 text-center font-semibold ${cierreColor}`}>
-                        {cierreAgNum !== null ? `${cierreAgNum.toFixed(1)}%` : "—"}
+                        {cierreAgNum !== null ? (
+                          <span className="flex items-center justify-center gap-1.5 flex-wrap">
+                            <span>{cierreAgNum.toFixed(1)}%</span>
+                            {isA && tipoAHistCierreAvg !== null && (() => {
+                              const d = cierreAgNum - tipoAHistCierreAvg;
+                              const bc = d > 5 ? "text-emerald-400" : d < -5 ? "text-rose-400" : "text-amber-400";
+                              return <span className={`text-[10px] font-normal ${bc}`}>prom {tipoAHistCierreAvg.toFixed(1)}%</span>;
+                            })()}
+                          </span>
+                        ) : "—"}
                       </td>
                     </tr>
                   );
