@@ -165,7 +165,7 @@ export default async function SettingPage({
   }));
   const tiposTotal = leadTypesADS.reduce((s, t) => s + t.leads, 0);
 
-  // Lead type summary — previous period (for pie chart comparison + column deltas)
+  // Lead type summary — previous period (for pie chart comparison)
   const tiposLeadsPrev    = tiposLeadsRaw.filter((r) => inRPrev(r["Fecha"]));
   const reunADSPrev       = reunionesRaw.filter((r) => r["Prospecto"] && inRPrev(r["Fecha de la agenda"]) && r["Canal"].trim().toLowerCase() === "ads mje ig");
   const tiposTotalPrev    = tiposLeadsPrev.reduce((s, r) => s + (parseInt(r["Tipo A"]) || 0) + (parseInt(r["Tipo B"]) || 0) + (parseInt(r["Tipo C"]) || 0) + (parseInt(r["Tipo D"]) || 0), 0);
@@ -174,6 +174,18 @@ export default async function SettingPage({
     leads:   tiposLeadsPrev.reduce((s, r) => s + (parseInt(r[`Tipo ${tipo}`]) || 0), 0),
     agendas: reunADSPrev.filter((r) => matchTipo(r, tipo)).length,
   }));
+
+  // Promedio histórico Tipo A desde 2026 — solo de datos 2026+
+  const parseYear = (dateStr: string) => {
+    const p = dateStr.trim().split("/");
+    if (p.length < 3) return 0;
+    const y = parseInt(p[2]); return y < 100 ? y + 2000 : y;
+  };
+  const tiposLeads2026   = tiposLeadsRaw.filter((r) => parseYear(r["Fecha"] ?? "") >= 2026);
+  const reunADS2026      = reunionesRaw.filter((r) => r["Prospecto"] && r["Canal"].trim().toLowerCase() === "ads mje ig" && parseYear(r["Fecha de la agenda"] ?? "") >= 2026);
+  const tipoALeads2026   = tiposLeads2026.reduce((s, r) => s + (parseInt(r["Tipo A"]) || 0), 0);
+  const tipoAAgendas2026 = reunADS2026.filter((r) => matchTipo(r, "A")).length;
+  const tipoAHistAvg     = tipoALeads2026 > 0 ? (tipoAAgendas2026 / tipoALeads2026) * 100 : null;
 
   // Pie chart data
   const TIPO_COLORS: Record<string, string> = {
@@ -355,27 +367,28 @@ export default async function SettingPage({
                 </tr>
               </thead>
               <tbody>
-                {leadTypesADS.map((t, i) => {
-                  // % del total — solo el valor, sin deltas
-                  const pctTot = tiposTotal > 0 && t.leads > 0 ? (t.leads / tiposTotal) * 100 : null;
-                  // % Ag/Leads — threshold coloring
-                  const agLeadsNum   = t.leads > 0 ? (t.agendas / t.leads) * 100 : null;
-                  // Promedio general Ag/Leads (todos los tipos combinados)
-                  const avgAgLeads   = tiposTotal > 0 && reunADS.length > 0 ? (reunADS.length / tiposTotal) * 100 : null;
-                  const agLeadsColor = agLeadsNum === null ? "text-slate-500"
+                {leadTypesADS.map((t) => {
+                  const isA         = t.tipo === "A";
+                  const pctTot      = tiposTotal > 0 && t.leads > 0 ? (t.leads / tiposTotal) * 100 : null;
+                  const agLeadsNum  = t.leads > 0 ? (t.agendas / t.leads) * 100 : null;
+                  const cierreAgNum = t.agendas > 0 ? (t.cierres / t.agendas) * 100 : null;
+
+                  // Colors SOLO para Tipo A
+                  const agLeadsColor = !isA ? "text-slate-400"
+                    : agLeadsNum === null ? "text-slate-500"
                     : agLeadsNum >= 25 ? "text-emerald-400"
                     : agLeadsNum >= 20 ? "text-amber-400"
                     : "text-rose-400";
-                  // Solo Tipo A: comparar vs promedio para el badge
-                  const isA       = t.tipo === "A";
-                  const diffVsAvg = isA && agLeadsNum !== null && avgAgLeads !== null ? agLeadsNum - avgAgLeads : null;
-                  const badgeColor = diffVsAvg === null ? "" : diffVsAvg > 5 ? "text-emerald-400" : diffVsAvg < -5 ? "text-rose-400" : "text-amber-400";
-                  // % Cierre/Ag — threshold coloring
-                  const cierreAgNum   = t.agendas > 0 ? (t.cierres / t.agendas) * 100 : null;
-                  const cierreAgColor = cierreAgNum === null ? "text-slate-500"
+                  const cierreColor = !isA ? "text-slate-400"
+                    : cierreAgNum === null ? "text-slate-500"
                     : cierreAgNum >= 25 ? "text-emerald-400"
                     : cierreAgNum >= 15 ? "text-amber-400"
                     : "text-rose-400";
+
+                  // Badge Tipo A: actual vs promedio histórico 2026
+                  const diffVsHist  = isA && agLeadsNum !== null && tipoAHistAvg !== null ? agLeadsNum - tipoAHistAvg : null;
+                  const badgeColor  = diffVsHist === null ? "" : diffVsHist > 5 ? "text-emerald-400" : diffVsHist < -5 ? "text-rose-400" : "text-amber-400";
+
                   return (
                     <tr key={t.tipo} className="border-b border-surface-800/50 hover:bg-surface-800/30">
                       <td className="px-4 py-2.5 font-bold text-white">Tipo {t.tipo}</td>
@@ -388,16 +401,16 @@ export default async function SettingPage({
                         {agLeadsNum !== null ? (
                           <span className="flex items-center justify-center gap-1.5 flex-wrap">
                             <span>{agLeadsNum.toFixed(1)}%</span>
-                            {isA && avgAgLeads !== null && (
+                            {isA && tipoAHistAvg !== null && (
                               <span className={`text-[10px] font-normal ${badgeColor}`}>
-                                prom {avgAgLeads.toFixed(1)}%
+                                prom {tipoAHistAvg.toFixed(1)}%
                               </span>
                             )}
                           </span>
                         ) : "—"}
                       </td>
                       <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{t.cierres || "—"}</td>
-                      <td className={`px-4 py-2.5 text-center font-semibold ${cierreAgColor}`}>
+                      <td className={`px-4 py-2.5 text-center font-semibold ${cierreColor}`}>
                         {cierreAgNum !== null ? `${cierreAgNum.toFixed(1)}%` : "—"}
                       </td>
                     </tr>

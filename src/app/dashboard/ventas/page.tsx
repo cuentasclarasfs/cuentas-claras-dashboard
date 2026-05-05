@@ -568,7 +568,7 @@ export default async function VentasPage({
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-surface-700">
-                      {["Antigüedad", "Agendas", "No pres.", "NS+Canc.", "Efectivas", "Cierres", "CR%"].map((h) => (
+                      {["Antigüedad", "Agendas", "No pres.", "NS+Canc.", "Efectivas", "% Efect.", "Cierres", "CR%"].map((h) => (
                         <th key={h} className="px-3 py-3 text-xs font-semibold text-slate-500 uppercase text-center first:text-left">{h}</th>
                       ))}
                     </tr>
@@ -591,6 +591,9 @@ export default async function VentasPage({
                             {r.nsCanc > 0 ? <span>{r.nsCanc} <span className="text-slate-600">({pctFmt(r.nsCanc, r.agendas)})</span></span> : "—"}
                           </td>
                           <td className="px-3 py-3 text-center text-brand-300 font-semibold">{r.efectivas || "—"}</td>
+                          <td className="px-3 py-3 text-center text-slate-400 text-xs">
+                            {r.agendas > 0 ? `${((r.efectivas / r.agendas) * 100).toFixed(0)}%` : "—"}
+                          </td>
                           <td className="px-3 py-3 text-center font-bold text-emerald-400">{r.cierres || "—"}</td>
                           <td className={`px-3 py-3 text-center font-semibold ${crColor}`}>
                             {crNum !== null ? `${crNum.toFixed(1)}%` : "—"}
@@ -610,6 +613,9 @@ export default async function VentasPage({
                         {tot.nsCanc > 0 ? `${tot.nsCanc} (${pctFmt(tot.nsCanc, tot.agendas)})` : "—"}
                       </td>
                       <td className="px-3 py-3 text-center font-bold text-brand-300">{tot.efectivas || "—"}</td>
+                      <td className="px-3 py-3 text-center text-slate-400 text-xs font-semibold">
+                        {tot.agendas > 0 ? `${((tot.efectivas / tot.agendas) * 100).toFixed(0)}%` : "—"}
+                      </td>
                       <td className="px-3 py-3 text-center font-bold text-emerald-400">{tot.cierres || "—"}</td>
                       <td className={`px-3 py-3 text-center font-bold ${tot.efectivas > 0 && (tot.cierres/tot.efectivas)*100 >= 30 ? "text-emerald-400" : "text-amber-400"}`}>
                         {tot.efectivas > 0 ? `${((tot.cierres / tot.efectivas) * 100).toFixed(1)}%` : "—"}
