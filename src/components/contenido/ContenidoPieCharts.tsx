@@ -4,10 +4,16 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recha
 import type { PieSlice } from "./pieUtils";
 export type { PieSlice } from "./pieUtils";
 
-function MiniTooltip({ active, payload, unit = "posts" }: { active?: boolean; payload?: { name: string; value: number; payload: PieSlice }[]; unit?: string }) {
+interface TooltipProps {
+  active?: boolean;
+  payload?: { name: string; value: number; payload: PieSlice }[];
+  unit: string;
+  total: number;
+}
+
+function MiniTooltip({ active, payload, unit, total }: TooltipProps) {
   if (!active || !payload?.length) return null;
   const { name, value, payload: sl } = payload[0];
-  const total = payload.reduce((s: number, p: { value: number }) => s + p.value, 0);
   const pct = total > 0 ? ((value / total) * 100).toFixed(1) : "0.0";
   return (
     <div className="bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-xs shadow-lg">
@@ -26,12 +32,14 @@ interface Props {
 
 export function MiniPie({ data, title, unit = "posts" }: Props) {
   const total = data.reduce((s, d) => s + d.value, 0);
+
   if (total === 0) return (
     <div className="flex flex-col items-center">
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">{title}</p>
       <p className="text-slate-600 text-xs">Sin datos</p>
     </div>
   );
+
   return (
     <div className="flex flex-col items-center">
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">{title}</p>
@@ -50,7 +58,16 @@ export function MiniPie({ data, title, unit = "posts" }: Props) {
               <Cell key={i} fill={entry.color} />
             ))}
           </Pie>
-          <Tooltip content={<MiniTooltip unit={unit} />} />
+          <Tooltip
+            content={(props) => (
+              <MiniTooltip
+                active={props.active}
+                payload={props.payload as TooltipProps["payload"]}
+                unit={unit}
+                total={total}
+              />
+            )}
+          />
           <Legend
             iconType="circle"
             iconSize={8}

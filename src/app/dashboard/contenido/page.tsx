@@ -232,7 +232,7 @@ export default async function ContenidoPage({
           <div className="card text-center">
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">% Coment./Views</p>
             <p className="text-2xl font-bold text-white">{comentPctCur.toFixed(2)}%</p>
-            <p className="text-xs text-slate-500 mt-0.5">prev {comentPctPrev.toFixed(2)}%<DeltaBadge cur={comentPctCur} p={comentPctPrev} isPercent /></p>
+            <p className="text-xs text-slate-500 mt-0.5">prev {comentPctPrev.toFixed(2)}%</p>
           </div>
         </div>
 
@@ -283,7 +283,7 @@ export default async function ContenidoPage({
           <div className="card text-center">
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Secuencias</p>
             <p className="text-2xl font-bold text-white">{num(secCur)}</p>
-            <p className="text-xs text-slate-500 mt-0.5">prev {num(secPrev)}<DeltaBadge cur={secCur} p={secPrev} /></p>
+            <p className="text-xs text-slate-500 mt-0.5">prev {num(secPrev)}</p>
           </div>
         </div>
 
@@ -311,14 +311,14 @@ export default async function ContenidoPage({
                     <tr key={tipo} className="border-b border-surface-800 hover:bg-surface-800/40">
                       <td className="py-2 text-slate-300">{tipo}</td>
                       <td className="py-2 text-white font-semibold text-right">
-                        {num(s.count)}<DeltaBadge cur={s.count} p={s.countPrev} />
+                        {num(s.count)}{s.countPrev > 0 && <span className="text-[10px] text-slate-500 ml-1">prev {num(s.countPrev)}</span>}
                       </td>
                       <td className="py-2 text-slate-400 text-right">{num(s.views)}</td>
                       <td className="py-2 text-slate-400 text-right">
                         {num(avgViews)}<DeltaBadge cur={avgViews} p={avgViewsPrev} />
                       </td>
                       <td className="py-2 text-white font-semibold text-right">
-                        {num(s.leads)}<DeltaBadge cur={s.leads} p={s.leadsPrev} />
+                        {num(s.leads)}{s.leadsPrev > 0 && <span className="text-[10px] text-slate-500 ml-1">prev {num(s.leadsPrev)}</span>}
                       </td>
                       <td className="py-2 text-slate-400 text-right">{leadsPct}</td>
                     </tr>
