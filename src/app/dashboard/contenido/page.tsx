@@ -89,10 +89,34 @@ export default async function ContenidoPage({
   const range = sp.from && sp.to ? { from: sp.from, to: sp.to } : defaultRange();
   const prev  = prevRange(range.from, range.to);
 
-  const [posteos, historias] = await Promise.all([
-    getContenidoPosteos(),
-    getContenidoHistorias(),
-  ]);
+  if (!process.env.SHEET_ID_CONTENIDO) {
+    return (
+      <div className="p-8 text-red-400 text-sm card">
+        ⚠️ Falta la variable de entorno <code>SHEET_ID_CONTENIDO</code> en Vercel. Agregala en Settings → Environment Variables y redesplegá.
+      </div>
+    );
+  }
+
+  let posteos: Record<string, string>[] = [];
+  let historias: Record<string, string>[] = [];
+  let fetchError: string | null = null;
+
+  try {
+    [posteos, historias] = await Promise.all([
+      getContenidoPosteos(),
+      getContenidoHistorias(),
+    ]);
+  } catch (e: unknown) {
+    fetchError = e instanceof Error ? e.message : String(e);
+  }
+
+  if (fetchError) {
+    return (
+      <div className="p-8 text-red-400 text-sm card">
+        ⚠️ Error al leer la hoja de Contenido: <code className="ml-1 text-xs">{fetchError}</code>
+      </div>
+    );
+  }
 
   // ── POSTEOS ──────────────────────────────────────────────────────────────────
   const postCur  = posteos.filter((r) => inDateRange(r["Fecha"] ?? "", range.from, range.to));
@@ -110,21 +134,21 @@ export default async function ContenidoPage({
   const comentPctCur  = viewsCur  > 0 ? (comentCur  / viewsCur)  * 100 : 0;
   const comentPctPrev = viewsPrev > 0 ? (comentPrev / viewsPrev) * 100 : 0;
 
-  // top 7 ángulos por comentarios
+  // top 7 ángulos por comentarios (col "Angulo" en la hoja)
   const angulosMap: Record<string, { comentarios: number; views: number }> = {};
   for (const r of postCur) {
-    const ang = (r["Tipo de ángulo"] ?? r["Ángulo"] ?? r["Angulo"] ?? "").trim();
+    const ang = (r["Angulo"] ?? r["Ángulo"] ?? "").trim();
     if (!ang) continue;
     if (!angulosMap[ang]) angulosMap[ang] = { comentarios: 0, views: 0 };
     angulosMap[ang].comentarios += toInt(r["Comentarios"] ?? "");
-    angulosMap[ang].views       += toInt(r["Visualizaciones"] ?? r["Views"] ?? "");
+    angulosMap[ang].views       += toInt(r["Visualizaciones"] ?? "");
   }
   const top7Angulos = Object.entries(angulosMap)
     .sort((a, b) => b[1].comentarios - a[1].comentarios)
     .slice(0, 7);
 
-  // pie charts posteos
-  const pieAngulo   = assignColors(Object.entries(countBy(postCur, "Tipo de ángulo")).map(([name, value]) => ({ name, value })));
+  // pie charts posteos (cols reales: "Tipo de angulo", "Formato", "Tipo de contenido")
+  const pieAngulo   = assignColors(Object.entries(countBy(postCur, "Tipo de angulo")).map(([name, value]) => ({ name, value })));
   const pieFormato  = assignColors(Object.entries(countBy(postCur, "Formato")).map(([name, value]) => ({ name, value })));
   const pieTipoCont = assignColors(Object.entries(countBy(postCur, "Tipo de contenido")).map(([name, value]) => ({ name, value })));
 
@@ -147,14 +171,14 @@ export default async function ContenidoPage({
     const k = (r["Tipo de Accionable"] ?? "").trim() || "(sin tipo)";
     ensureTipo(k);
     tipoAcMap[k].count++;
-    tipoAcMap[k].views += toInt(r["Visualizaciones"] ?? r["Views"] ?? "");
+    tipoAcMap[k].views += toInt(r["Views"] ?? r["Visualizaciones"] ?? "");
     tipoAcMap[k].leads += toInt(r["Leads"] ?? "");
   }
   for (const r of histPrev) {
     const k = (r["Tipo de Accionable"] ?? "").trim() || "(sin tipo)";
     ensureTipo(k);
     tipoAcMap[k].countPrev++;
-    tipoAcMap[k].viewsPrev += toInt(r["Visualizaciones"] ?? r["Views"] ?? "");
+    tipoAcMap[k].viewsPrev += toInt(r["Views"] ?? r["Visualizaciones"] ?? "");
     tipoAcMap[k].leadsPrev += toInt(r["Leads"] ?? "");
   }
   const tipoAcRows = Object.entries(tipoAcMap).sort((a, b) => b[1].leads - a[1].leads);
