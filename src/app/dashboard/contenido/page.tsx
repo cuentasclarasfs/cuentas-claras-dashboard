@@ -1,7 +1,8 @@
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SalesPeriodPicker } from "@/components/ui/SalesPeriodPicker";
 import { getContenidoPosteos, getContenidoHistorias } from "@/lib/sheets";
-import { MiniPie, assignColors } from "@/components/contenido/ContenidoPieCharts";
+import { assignColors } from "@/components/contenido/pieUtils";
+import { MiniPie } from "@/components/contenido/ContenidoPieCharts";
 import type { JSX } from "react";
 
 export const revalidate = 0;
