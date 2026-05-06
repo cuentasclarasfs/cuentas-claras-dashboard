@@ -805,3 +805,17 @@ export async function getPatrimonioHistoria(): Promise<HistoriaRow[]> {
       };
     });
 }
+
+// ── CONTENIDO ────────────────────────────────────────────────────────────────
+
+export async function getContenidoPosteos(): Promise<Record<string, string>[]> {
+  const rows = await getSheet(process.env.SHEET_ID_CONTENIDO!, "Posteos!A:I");
+  if (rows.length < 2) return [];
+  return rowsToObjects(rows);
+}
+
+export async function getContenidoHistorias(): Promise<Record<string, string>[]> {
+  const rows = await getSheet(process.env.SHEET_ID_CONTENIDO!, "Historias!A:L");
+  if (rows.length < 2) return [];
+  return rowsToObjects(rows);
+}
