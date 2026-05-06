@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { SalesPeriodPicker } from "@/components/ui/SalesPeriodPicker";
 import { getContenidoPosteos, getContenidoHistorias } from "@/lib/sheets";
 import { MiniPie, assignColors } from "@/components/contenido/ContenidoPieCharts";
+import type { JSX } from "react";
 
 export const revalidate = 0;
 
@@ -64,6 +65,18 @@ function countBy(rows: Record<string, string>[], key: string): Record<string, nu
 }
 
 function toInt(s: string) { return parseInt((s ?? "").replace(/[.,]/g, "")) || 0; }
+
+function DeltaBadge({ cur, p, isPercent = false }: { cur: number; p: number; isPercent?: boolean }): JSX.Element | null {
+  if (p === 0) return null;
+  const delta = cur - p;
+  const pct   = Math.abs((delta / p) * 100);
+  const sign  = delta >= 0 ? "▲" : "▼";
+  const color = delta >= 0 ? "text-emerald-400" : "text-red-400";
+  const label = isPercent
+    ? `${sign}${Math.abs(delta).toFixed(1)}pp`
+    : `${sign}${pct.toFixed(0)}%`;
+  return <span className={`text-[10px] font-semibold ${color} ml-1`}>{label}</span>;
+}
 
 // ── page ──────────────────────────────────────────────────────────────────────
 
@@ -161,19 +174,6 @@ export default async function ContenidoPage({
   // pie charts historias
   const pieTipoAc      = assignColors(Object.entries(countBy(histCur, "Tipo de Accionable")).map(([name, value]) => ({ name, value })));
   const pieFormatoHist = assignColors(Object.entries(countBy(histCur, "Formato")).map(([name, value]) => ({ name, value })));
-
-  // ── helpers JSX ──────────────────────────────────────────────────────────────
-  function DeltaBadge({ cur, p, isPercent = false }: { cur: number; p: number; isPercent?: boolean }) {
-    if (p === 0) return null;
-    const delta = cur - p;
-    const pct   = Math.abs((delta / p) * 100);
-    const sign  = delta >= 0 ? "▲" : "▼";
-    const color = delta >= 0 ? "text-emerald-400" : "text-red-400";
-    const label = isPercent
-      ? `${sign}${Math.abs(delta).toFixed(1)}pp`
-      : `${sign}${pct.toFixed(0)}%`;
-    return <span className={`text-[10px] font-semibold ${color} ml-1`}>{label}</span>;
-  }
 
   return (
     <div>
