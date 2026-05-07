@@ -3,10 +3,12 @@ import {
   getStatusClientes, getAnalisisClientesResumen,
   filterFeedbackByMonth, nextMonthKey, currentMonthKey,
 } from "@/lib/sheets";
+import { Suspense } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { KPICard } from "@/components/ui/KPICard";
 import { MonthSelector } from "@/components/ui/MonthSelector";
 import { AsesorFilter } from "@/components/ui/AsesorFilter";
+import { MesComienzFilter, keyToLabel } from "@/components/ui/MesComienzFilter";
 import { ClientesTrendChart } from "@/components/charts/ClientesTrendChart";
 import { Users, Star, TrendingUp, AlertCircle } from "lucide-react";
 
@@ -49,11 +51,13 @@ function fbMetrics(rows: Record<string, string>[]) {
 export default async function ClientesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; asesor?: string }>;
+  searchParams: Promise<{ month?: string; asesor?: string; mesDesde?: string; mesHasta?: string }>;
 }) {
   const sp = await searchParams;
-  const selectedMonth = sp.month ?? currentMonthKey();
-  const selectedAsesor = sp.asesor ?? "";
+  const selectedMonth  = sp.month    ?? currentMonthKey();
+  const selectedAsesor = sp.asesor   ?? "";
+  const selectedMesDesde = sp.mesDesde ?? "";
+  const selectedMesHasta = sp.mesHasta ?? "";
 
   // Feedback is 1 month behind — selected=March → show April feedbacks
   const feedbackMonth = nextMonthKey(selectedMonth);
@@ -109,6 +113,26 @@ export default async function ClientesPage({
     });
   const allAsesores = [...new Set([...asesorListFB, ...asesoresStatus])].sort();
 
+  // ── Mes de comienzo helpers ──
+  const MESES_ES: Record<string, number> = {
+    ene:1, feb:2, mar:3, abr:4, may:5, jun:6, jul:7, ago:8,
+    sep:9, sept:9, oct:10, nov:11, dic:12,
+  };
+  function mesComienzaKey(s: string): string | null {
+    const parts = (s ?? "").trim().toLowerCase().split(/\s+/);
+    if (parts.length < 2) return null;
+    const m = MESES_ES[parts[0]];
+    const y = parseInt(parts[1]);
+    if (!m || isNaN(y)) return null;
+    const fullY = y < 100 ? y + 2000 : y;
+    return `${fullY}-${String(m).padStart(2, "0")}`;
+  }
+
+  // Unique sorted month keys across ALL status rows (for the filter options)
+  const allMesKeys = [...new Set(
+    statusRows.map((r) => mesComienzaKey(r["Mes de comienzo"] ?? "")).filter(Boolean) as string[]
+  )].sort();
+
   // ── Análisis por Rango de Facturación ──
   const getRango = (r: Record<string, string>) =>
     (r["Rango de Facturación"] || r["Rango de Facturacion"] || "").trim();
@@ -132,13 +156,21 @@ export default async function ClientesPage({
     };
   }
 
-  // Use statusFiltrado so the asesor filter applies
-  const allRangos = [...new Set(statusFiltrado.map(getRango).filter(Boolean))].sort();
-  const sinRangoRows = statusFiltrado.filter((r) => !getRango(r) && (r["Status"] || "").trim());
+  // Apply mes comienzo filter on top of asesor filter for the rango table
+  const statusParaRango = statusFiltrado.filter((r) => {
+    const key = mesComienzaKey(r["Mes de comienzo"] ?? "");
+    if (!key) return true; // keep rows without a date (don't hide them)
+    if (selectedMesDesde && key < selectedMesDesde) return false;
+    if (selectedMesHasta && key > selectedMesHasta) return false;
+    return true;
+  });
+
+  const allRangos = [...new Set(statusParaRango.map(getRango).filter(Boolean))].sort();
+  const sinRangoRows = statusParaRango.filter((r) => !getRango(r) && (r["Status"] || "").trim());
 
   const rangoStats = [
     ...allRangos.map((rango) =>
-      buildRangoRow(statusFiltrado.filter((r) => getRango(r) === rango), rango)
+      buildRangoRow(statusParaRango.filter((r) => getRango(r) === rango), rango)
     ),
     ...(sinRangoRows.length > 0 ? [buildRangoRow(sinRangoRows, "Sin Rango", true)] : []),
   ];
@@ -308,12 +340,26 @@ export default async function ClientesPage({
 
       {/* ── ANÁLISIS POR RANGO DE FACTURACIÓN ── */}
       {rangoStats.length > 0 && (<>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
           <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500">
             Análisis por Rango de Facturación
             {selectedAsesor && <span className="ml-2 normal-case text-brand-400 font-normal text-xs">— {selectedAsesor}</span>}
+            {(selectedMesDesde || selectedMesHasta) && (
+              <span className="ml-2 normal-case text-slate-500 font-normal text-xs">
+                · {selectedMesDesde ? keyToLabel(selectedMesDesde) : "inicio"} → {selectedMesHasta ? keyToLabel(selectedMesHasta) : "hoy"}
+              </span>
+            )}
           </h2>
-          <AsesorFilter asesores={allAsesores} />
+          <div className="flex items-center gap-3 flex-wrap">
+            <Suspense fallback={null}>
+              <MesComienzFilter
+                meses={allMesKeys}
+                selectedDesde={selectedMesDesde}
+                selectedHasta={selectedMesHasta}
+              />
+            </Suspense>
+            <AsesorFilter asesores={allAsesores} />
+          </div>
         </div>
         <div className="card mb-10 overflow-x-auto">
           <table className="w-full text-sm">
