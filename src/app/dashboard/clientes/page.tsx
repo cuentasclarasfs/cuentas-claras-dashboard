@@ -8,7 +8,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { KPICard } from "@/components/ui/KPICard";
 import { MonthSelector } from "@/components/ui/MonthSelector";
 import { AsesorFilter } from "@/components/ui/AsesorFilter";
-import { MesComienzFilter, keyToLabel } from "@/components/ui/MesComienzFilter";
+import { MesComienzFilter } from "@/components/ui/MesComienzFilter";
+import { keyToLabel } from "@/components/ui/mesUtils";
 import { ClientesTrendChart } from "@/components/charts/ClientesTrendChart";
 import { Users, Star, TrendingUp, AlertCircle } from "lucide-react";
 

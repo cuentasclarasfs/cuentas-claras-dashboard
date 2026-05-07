@@ -1,14 +1,8 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-
-const MESES_DISP = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-
-export function keyToLabel(key: string): string {
-  const [y, m] = key.split("-").map(Number);
-  if (!y || !m) return key;
-  return `${MESES_DISP[m - 1]} ${String(y).slice(2)}`;
-}
+import { keyToLabel } from "./mesUtils";
+export { keyToLabel } from "./mesUtils";
 
 interface Props {
   meses: string[];        // sorted "YYYY-MM" keys
