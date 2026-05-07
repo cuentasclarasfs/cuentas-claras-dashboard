@@ -4,11 +4,12 @@ import { useState } from "react";
 import { Copy, Check } from "lucide-react";
 
 interface Deudor {
-  cliente:    string;
-  consultor:  string;
-  closer:     string;
-  dias:       number;
-  monto:      number;
+  cliente:      string;
+  consultor:    string;
+  closer:       string;
+  responsable:  string;
+  dias:         number;
+  monto:        number;
 }
 
 interface Props {
@@ -33,8 +34,9 @@ function buildWhatsAppText(deudores: Deudor[], totalDeuda: number, fecha: string
     const montoStr = d.monto > 0 ? fmtARS(d.monto) : "—";
     lines.push(`${urgency} *${d.cliente}*`);
     const detalle = [
-      d.consultor ? `Asesor: ${d.consultor}` : null,
-      d.closer    ? `Closer: ${d.closer}`    : null,
+      d.consultor    ? `Asesor: ${d.consultor}`         : null,
+      d.closer       ? `Closer: ${d.closer}`            : null,
+      d.responsable  ? `Responsable: ${d.responsable}`  : null,
     ].filter(Boolean).join(" | ");
     if (detalle) lines.push(`   _${detalle}_`);
     lines.push(`   ⏰ ${d.dias} días atrasado | 💰 ${montoStr}`);

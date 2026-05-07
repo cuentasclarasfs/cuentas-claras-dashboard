@@ -28,12 +28,13 @@ function pct(n: number, total: number): string {
 export default async function AdministracionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ consultor?: string; closer?: string; sinMonto?: string }>;
+  searchParams: Promise<{ consultor?: string; closer?: string; sinMonto?: string; responsable?: string }>;
 }) {
   const sp = await searchParams;
-  const selectedConsultor = sp.consultor ?? "";
-  const selectedCloser    = sp.closer    ?? "";
-  const ocultarSinMonto   = sp.sinMonto === "ocultar";
+  const selectedConsultor   = sp.consultor   ?? "";
+  const selectedCloser      = sp.closer      ?? "";
+  const selectedResponsable = sp.responsable ?? "";
+  const ocultarSinMonto     = sp.sinMonto === "ocultar";
 
   const user = await currentUser();
   const role = ((user?.publicMetadata?.role as Role) ?? "ops") as Role;
@@ -87,21 +88,24 @@ export default async function AdministracionPage({
   const topCloserByDebt  = Object.entries(byDebtCloser).sort((a, b)  => b[1] - a[1])[0] ?? null;
 
   // All unique values for filters
-  const allConsultores = [...new Set(deudores.map((d) => d["Consultor"]).filter(Boolean))].sort();
-  const allClosers     = [...new Set(deudores.map((d) => d["Closer"]).filter(Boolean))].sort();
+  const allConsultores   = [...new Set(deudores.map((d) => d["Consultor"]).filter(Boolean))].sort();
+  const allClosers       = [...new Set(deudores.map((d) => d["Closer"]).filter(Boolean))].sort();
+  const allResponsables  = [...new Set(deudores.map((d) => d["Responsable"]).filter(Boolean))].sort();
 
   // Filtered debtor list (all filters apply together)
   const filteredDeudores = deudores.filter((d) => {
-    if (selectedConsultor && d["Consultor"] !== selectedConsultor) return false;
-    if (selectedCloser    && d["Closer"]    !== selectedCloser)    return false;
-    if (ocultarSinMonto   && parseNumES(d["Monto"]) === 0)        return false;
+    if (selectedConsultor   && d["Consultor"]   !== selectedConsultor)   return false;
+    if (selectedCloser      && d["Closer"]      !== selectedCloser)      return false;
+    if (selectedResponsable && d["Responsable"] !== selectedResponsable) return false;
+    if (ocultarSinMonto     && parseNumES(d["Monto"]) === 0)            return false;
     return true;
   });
   const filteredTotal    = filteredDeudores.reduce((s, r) => s + parseNumES(r["Monto"]), 0);
-  // Count sin-monto after consultor/closer filters (ignoring sinMonto toggle) — for the toggle label
+  // Count sin-monto after all filters except sinMonto toggle — for the toggle label
   const sinMontoCount    = deudores.filter((d) => {
-    if (selectedConsultor && d["Consultor"] !== selectedConsultor) return false;
-    if (selectedCloser    && d["Closer"]    !== selectedCloser)    return false;
+    if (selectedConsultor   && d["Consultor"]   !== selectedConsultor)   return false;
+    if (selectedCloser      && d["Closer"]      !== selectedCloser)      return false;
+    if (selectedResponsable && d["Responsable"] !== selectedResponsable) return false;
     return parseNumES(d["Monto"]) === 0;
   }).length;
 
@@ -233,9 +237,10 @@ export default async function AdministracionPage({
             {/* Toggle sin monto */}
             {sinMontoCount > 0 && (() => {
               const params = new URLSearchParams();
-              if (selectedConsultor) params.set("consultor", selectedConsultor);
-              if (selectedCloser)    params.set("closer",    selectedCloser);
-              if (!ocultarSinMonto)  params.set("sinMonto",  "ocultar");
+              if (selectedConsultor)   params.set("consultor",   selectedConsultor);
+              if (selectedCloser)      params.set("closer",      selectedCloser);
+              if (selectedResponsable) params.set("responsable", selectedResponsable);
+              if (!ocultarSinMonto)    params.set("sinMonto",    "ocultar");
               const href = `/dashboard/administracion?${params.toString()}`;
               return (
                 <Link
@@ -255,6 +260,11 @@ export default async function AdministracionPage({
                 </Link>
               );
             })()}
+            {allResponsables.length > 0 && (
+              <Suspense fallback={null}>
+                <ConsultorFilter consultores={allResponsables} paramKey="responsable" label="Responsable:" />
+              </Suspense>
+            )}
             {allConsultores.length > 0 && (
               <Suspense fallback={null}>
                 <ConsultorFilter consultores={allConsultores} />
@@ -277,7 +287,7 @@ export default async function AdministracionPage({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-surface-700">
-                  {["Cliente", "Consultor", "Closer", "Días atrasado", "Monto adeudado"].map((h) => (
+                  {["Cliente", "Consultor", "Closer", "Responsable", "Días atrasado", "Monto adeudado"].map((h) => (
                     <th key={h} className="px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase text-left first:text-left">{h}</th>
                   ))}
                 </tr>
@@ -294,6 +304,15 @@ export default async function AdministracionPage({
                         <td className="px-4 py-2.5 font-medium text-white">{d["Cliente"]}</td>
                         <td className="px-4 py-2.5 text-slate-400">{d["Consultor"] || "—"}</td>
                         <td className="px-4 py-2.5 text-slate-400">{d["Closer"] || "—"}</td>
+                        <td className="px-4 py-2.5">
+                          {d["Responsable"] ? (
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded border ${
+                              d["Responsable"].toLowerCase() === "closer"
+                                ? "bg-indigo-900/40 text-indigo-300 border-indigo-800/50"
+                                : "bg-emerald-900/40 text-emerald-400 border-emerald-800/50"
+                            }`}>{d["Responsable"]}</span>
+                          ) : "—"}
+                        </td>
                         <td className={`px-4 py-2.5 tabular-nums font-semibold ${urgency}`}>
                           {diasNum} días
                         </td>
@@ -307,7 +326,7 @@ export default async function AdministracionPage({
               {/* Total row */}
               <tfoot>
                 <tr className="border-t border-surface-600/60 bg-surface-800/40">
-                  <td className="px-4 py-2.5 font-bold text-white" colSpan={3}>
+                  <td className="px-4 py-2.5 font-bold text-white" colSpan={4}>
                     Total
                     {selectedConsultor && <span className="ml-1 font-normal text-slate-400">— {selectedConsultor}</span>}
                     {selectedCloser    && <span className="ml-1 font-normal text-slate-400">— {selectedCloser}</span>}
@@ -332,11 +351,12 @@ export default async function AdministracionPage({
               deudores={filteredDeudores
                 .sort((a, b) => parseFloat(a["Dias"]) - parseFloat(b["Dias"]))
                 .map((d) => ({
-                  cliente:   d["Cliente"],
-                  consultor: d["Consultor"] || "",
-                  closer:    d["Closer"]    || "",
-                  dias:      Math.abs(parseFloat(d["Dias"]) || 0),
-                  monto:     parseNumES(d["Monto"]),
+                  cliente:      d["Cliente"],
+                  consultor:    d["Consultor"]   || "",
+                  closer:       d["Closer"]      || "",
+                  responsable:  d["Responsable"] || "",
+                  dias:         Math.abs(parseFloat(d["Dias"]) || 0),
+                  monto:        parseNumES(d["Monto"]),
                 }))}
               totalDeuda={filteredTotal}
               fechaActualizacion={fechaActualizacion}

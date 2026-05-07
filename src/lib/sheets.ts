@@ -538,14 +538,15 @@ export async function getStatusPagoFecha(): Promise<string | null> {
 // Status y pago — A1 = last-update date (meta), row 2 = headers, row 3+ = data
 // A=Cliente, C=Consultor, M=DíasProxPago (negative = debtor), N=MontoAdeudado
 export async function getStatusPago(): Promise<Record<string, string>[]> {
-  const rows = await getSheet(process.env.SHEET_ID_STATUS_CLIENTES!, "Status y pago!A:N");
+  const rows = await getSheet(process.env.SHEET_ID_STATUS_CLIENTES!, "Status y pago!A:O");
   if (rows.length < 3) return [];
   return rows.slice(2).filter((r) => r[0]?.trim()).map((row) => ({
-    "Cliente":   row[0]  ?? "",  // A
-    "Consultor": row[2]  ?? "",  // C
-    "Closer":    row[3]  ?? "",  // D
-    "Dias":      row[12] ?? "",  // M — negative = days overdue
-    "Monto":     row[13] ?? "",  // N — amount owed
+    "Cliente":      row[0]  ?? "",  // A
+    "Consultor":    row[2]  ?? "",  // C
+    "Closer":       row[3]  ?? "",  // D
+    "Dias":         row[12] ?? "",  // M — negative = days overdue
+    "Monto":        row[13] ?? "",  // N — amount owed
+    "Responsable":  row[14] ?? "",  // O — "Closer" | "Consultor"
   }));
 }
 
