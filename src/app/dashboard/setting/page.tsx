@@ -1,6 +1,7 @@
 import {
   getSettingMsgIG, getSettingTiposLeads, getSettingAnalisisFMA,
   getVentasReuniones, isClosedStatus, parseUSD,
+  getMarketingVSL, getMarketingFMA, getContenidoPosteos, getContenidoHistorias,
 } from "@/lib/sheets";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SalesPeriodPicker } from "@/components/ui/SalesPeriodPicker";
@@ -82,8 +83,22 @@ function DiffBadge({ curr, prev }: { curr: number; prev: number }) {
   );
 }
 
+function VarBadge({ curr, prev, lowerBetter = false }: { curr: number; prev: number; lowerBetter?: boolean }) {
+  if (!prev || !curr) return null;
+  const d = ((curr - prev) / prev) * 100;
+  if (Math.abs(d) < 1) return null;
+  const good = lowerBetter ? d < 0 : d > 0;
+  return (
+    <span className={`text-[10px] font-semibold ${good ? "text-emerald-400" : "text-rose-400"}`}>
+      {good ? (lowerBetter ? "▼" : "▲") : (lowerBetter ? "▲" : "▼")}{Math.abs(d).toFixed(0)}%
+    </span>
+  );
+}
+
 const LEAD_TIPOS = ["A", "B", "C", "D"] as const;
-const FMA_ORIGINS = ["Organico", "Comentarios", "VSL Insta", "Link Perfil"] as const;
+const FMA_CANALES_LIST = ["Outbound", "Organico", "Comentarios", "Link Perfil", "VSL Insta"] as const;
+const isFMACanal = (canal: string) =>
+  FMA_CANALES_LIST.some((c) => canal.toLowerCase().includes(c.toLowerCase()));
 
 // ── page ──────────────────────────────────────────────────────────────────────
 
@@ -96,12 +111,24 @@ export default async function SettingPage({
   const range = sp.from && sp.to ? { from: sp.from, to: sp.to } : defaultRange();
   const prev  = prevRange(range.from, range.to);
 
-  const [msgIGRaw, tiposLeadsRaw, analisisFMARaw, reunionesRaw] = await Promise.all([
+  const [msgIGRaw, tiposLeadsRaw, analisisFMARaw, reunionesRaw, vslRaw, fmaRawData] = await Promise.all([
     getSettingMsgIG(),
     getSettingTiposLeads(),
     getSettingAnalisisFMA(),
     getVentasReuniones(),
+    getMarketingVSL(),
+    getMarketingFMA(),
   ]);
+
+  // Contenido sheets (may not be configured)
+  let contenidoPosteosRaw: Record<string, string>[] = [];
+  let contenidoHistoriasRaw: Record<string, string>[] = [];
+  try {
+    [contenidoPosteosRaw, contenidoHistoriasRaw] = await Promise.all([
+      getContenidoPosteos(),
+      getContenidoHistorias(),
+    ]);
+  } catch (_) { /* SHEET_ID_CONTENIDO might not be set */ }
 
   // Filter each dataset to selected date range
   const inR     = (dateStr: string) => inDateRange(dateStr, range.from, range.to);
@@ -121,23 +148,68 @@ export default async function SettingPage({
   const byCanal = (canal: string) =>
     reuniones.filter((r) => r["Canal"].trim().toLowerCase() === canal.trim().toLowerCase());
 
-  // ── Pre-compute Outbound counts (needed in Section 1 for Resumen) ─────────
-  const tienenNegocioResumen = sumInt(analisisFMA, "Tienen negocio");
+  // ── GENERACIÓN DE AGENDAS: gastos ─────────────────────────────────────────
 
-  // ── SECTION 1: Resumen total ──────────────────────────────────────────────
+  const gastoVSL    = vslRaw.filter((r) => inR(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["Gasto"] ?? ""), 0);
+  const gastoIG     = msgIG.reduce((s, r) => s + parseUSD(r["Gasto"] ?? ""), 0);
+  const gastoFMA    = fmaRawData.filter((r) => inR(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["$"] ?? ""), 0);
+  const gastoVSLPrev = vslRaw.filter((r) => inRPrev(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["Gasto"] ?? ""), 0);
+  const gastoIGPrev  = msgIGRaw.filter((r) => inRPrev(r["Fecha"])).reduce((s, r) => s + parseUSD(r["Gasto"] ?? ""), 0);
+  const gastoFMAPrev = fmaRawData.filter((r) => inRPrev(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["$"] ?? ""), 0);
+  const gastoTotal   = gastoVSL + gastoIG + gastoFMA;
+  const gastoTotalPrev = gastoVSLPrev + gastoIGPrev + gastoFMAPrev;
 
-  // Leads for each channel (only ADS IG and Outbound have lead counts)
-  const totalLeads    = sumInt(msgIG, "Total leads");
+  // Agendas by channel
+  const reunVSL   = reuniones.filter((r) => r["Canal"] === "Publi a VSL");
+  const reunIG    = reuniones.filter((r) => r["Canal"] === "ADS Mje IG");
+  const reunFMA   = reuniones.filter((r) => isFMACanal(r["Canal"]));
+  const reunOtros = reuniones.filter(
+    (r) => r["Canal"] !== "Publi a VSL" && r["Canal"] !== "ADS Mje IG" && !isFMACanal(r["Canal"]) && r["Canal"]?.trim()
+  );
 
-  const estrategias = [
-    { nombre: "ADS IG",      canal: "ADS Mje IG",   leads: totalLeads       || null },
-    { nombre: "Orgánico",    canal: "Organico",      leads: null },
-    { nombre: "Comentarios", canal: "Comentarios",   leads: null },
-    { nombre: "VSL Insta",   canal: "VSL Insta",     leads: null },
-    { nombre: "VSL",         canal: "Publi a VSL",   leads: null },
-    { nombre: "Link Perfil", canal: "Link Perfil",   leads: null },
-    { nombre: "Outbound",    canal: "Outbound",       leads: tienenNegocioResumen || null },
-    { nombre: "Historias",   canal: "Historias",      leads: null },
+  // Prev period reuniones
+  const reunPrev     = reunionesRaw.filter((r) => r["Prospecto"] && inRPrev(r["Fecha de la agenda"]));
+  const reunVSLPrev  = reunPrev.filter((r) => r["Canal"] === "Publi a VSL");
+  const reunIGPrev   = reunPrev.filter((r) => r["Canal"] === "ADS Mje IG");
+  const reunFMAPrev  = reunPrev.filter((r) => isFMACanal(r["Canal"]));
+
+  const cpa = (gasto: number, ag: number) => ag > 0 && gasto > 0 ? gasto / ag : null;
+
+  // FMA sub-canal breakdown (for mini card)
+  const fmaSubBreakdown = (FMA_CANALES_LIST as readonly string[]).map((origen) => ({
+    origen,
+    agendas: byCanal(origen).length,
+    cierres: byCanal(origen).filter((r) => isClosedStatus(r["Status"])).length,
+  })).filter((b) => b.agendas > 0);
+
+  // Individual "otros" canals (non-VSL, non-IG, non-FMA)
+  const otrasCanalesNames = [...new Set(reunOtros.map((r) => r["Canal"].trim()))].sort();
+
+  // ── Outbound data (needed early for Análisis de Leads) ───────────────────
+
+  const tienenNegocio     = sumInt(analisisFMA,  "Tienen negocio");
+  const prevTienenNegocio = sumInt(analisisPrev, "Tienen negocio");
+
+  // ── ANÁLISIS DE LEADS ─────────────────────────────────────────────────────
+
+  const comentariosLeads = contenidoPosteosRaw
+    .filter((r) => inR(r["Fecha"] ?? ""))
+    .reduce((s, r) => s + (parseInt(r["Comentarios"]) || 0), 0);
+  const historiasLeads = contenidoHistoriasRaw
+    .filter((r) => inR(r["Fecha"] ?? ""))
+    .reduce((s, r) => s + (parseInt(r["Leads"]) || 0), 0);
+
+  // ADS IG leads = sum of Tipo A+B+C+D
+  const tiposTotal = tiposLeads.reduce(
+    (s, r) => s + (parseInt(r["Tipo A"]) || 0) + (parseInt(r["Tipo B"]) || 0) +
+              (parseInt(r["Tipo C"]) || 0) + (parseInt(r["Tipo D"]) || 0), 0
+  );
+
+  const leadsAnalisis = [
+    { nombre: "ADS IG",      leads: tiposTotal,      canal: "ADS Mje IG"   },
+    { nombre: "Outbound",    leads: tienenNegocio,   canal: "Outbound"     },
+    { nombre: "Comentarios", leads: comentariosLeads, canal: "Comentarios" },
+    { nombre: "Historias",   leads: historiasLeads,  canal: "Historias"    },
   ].map((e) => {
     const rows    = byCanal(e.canal);
     const agendas = rows.length;
@@ -145,13 +217,50 @@ export default async function SettingPage({
     return { ...e, agendas, cierres };
   });
 
-  // ── SECTION 2: ADS MJE IG ────────────────────────────────────────────────
+  // ── VSL METRICS ───────────────────────────────────────────────────────────
+
+  const vslPeriod    = vslRaw.filter((r) => inR(r["Fecha"] ?? ""));
+  const vslPrevPer   = vslRaw.filter((r) => inRPrev(r["Fecha"] ?? ""));
+
+  const vslInversion     = gastoVSL;
+  const vslInversionPrev = gastoVSLPrev;
+  const vslVisitas       = vslPeriod.reduce((s, r) => s + (parseInt(r["Visitas a la pagina"]) || 0), 0);
+  const vslVisitasPrev   = vslPrevPer.reduce((s, r) => s + (parseInt(r["Visitas a la pagina"]) || 0), 0);
+  const vslAgendasReun   = reunVSL.length;
+  const vslAgendasPrevReun = reunVSLPrev.length;
+  const vslCierres       = reunVSL.filter((r) => isClosedStatus(r["Status"])).length;
+  const vslCierresPrev   = reunVSLPrev.filter((r) => isClosedStatus(r["Status"])).length;
+  const vslConversion    = vslVisitas > 0 && vslAgendasReun > 0 ? (vslAgendasReun / vslVisitas) * 100 : null;
+  const vslConversionPrev = vslVisitasPrev > 0 && vslAgendasPrevReun > 0 ? (vslAgendasPrevReun / vslVisitasPrev) * 100 : null;
+  const vslCostVisita    = vslVisitas > 0 && vslInversion > 0 ? vslInversion / vslVisitas : null;
+  const vslCostVisitaPrev = vslVisitasPrev > 0 && vslInversionPrev > 0 ? vslInversionPrev / vslVisitasPrev : null;
+
+  // ── FMA METRICS (redesigned) ───────────────────────────────────────────────
+
+  const fmaMetricasPer  = fmaRawData.filter((r) => inR(r["Fecha"] ?? ""));
+  const fmaMetricasPrevP = fmaRawData.filter((r) => inRPrev(r["Fecha"] ?? ""));
+
+  const fmaSeguidores     = fmaMetricasPer.reduce((s, r) => s + (parseInt(r["Seguidores Ads Man"]) || 0) + (parseInt(r["Seguidores Many"]) || 0), 0);
+  const fmaSeguidoresPrev = fmaMetricasPrevP.reduce((s, r) => s + (parseInt(r["Seguidores Ads Man"]) || 0) + (parseInt(r["Seguidores Many"]) || 0), 0);
+  const fmaCmtLeads       = fmaMetricasPer.reduce((s, r) => s + (parseInt(r["Comentarios"]) || 0), 0);
+  // Leads del ecosistema FMA: Comentarios FMA + Outbound + Historias
+  const fmaEcoLeads       = fmaCmtLeads + tienenNegocio + historiasLeads;
+  const fmaAgendasFMA     = reunFMA.length;
+  const fmaCierresFMA     = reunFMA.filter((r) => isClosedStatus(r["Status"])).length;
+  const fmaAgendasFMAPrev = reunFMAPrev.length;
+  const fmaCierresFMAPrev = reunFMAPrev.filter((r) => isClosedStatus(r["Status"])).length;
+  const fmaCostSeguidor   = fmaSeguidores > 0 && gastoFMA > 0 ? gastoFMA / fmaSeguidores : null;
+  const fmaCostSegPrev    = fmaSeguidoresPrev > 0 && gastoFMAPrev > 0 ? gastoFMAPrev / fmaSeguidoresPrev : null;
+  const fmaCostLead       = fmaEcoLeads > 0 && gastoFMA > 0 ? gastoFMA / fmaEcoLeads : null;
+
+  // ── SECTION ADS MJE IG: existing data ────────────────────────────────────
 
   const inversion     = msgIG.reduce((s, r) => s + parseUSD(r["Gasto"]), 0);
   const pitch         = sumInt(msgIG, "Pitch");
   const permiso       = sumInt(msgIG, "Permiso");
   const agendaEnviada = sumInt(msgIG, "Agenda enviada");
   const agendado      = sumInt(msgIG, "Agendado");
+  const totalLeads    = sumInt(msgIG, "Total leads");
 
   const reunADS    = byCanal("ADS Mje IG");
   const cierresADS = reunADS.filter((r) => isClosedStatus(r["Status"])).length;
@@ -163,9 +272,8 @@ export default async function SettingPage({
     agendas: reunADS.filter((r) => matchTipo(r, tipo)).length,
     cierres: reunADS.filter((r) => matchTipo(r, tipo) && isClosedStatus(r["Status"])).length,
   }));
-  const tiposTotal = leadTypesADS.reduce((s, t) => s + t.leads, 0);
 
-  // Lead type summary — previous period (for pie chart comparison)
+  // Lead type summary — previous period
   const tiposLeadsPrev    = tiposLeadsRaw.filter((r) => inRPrev(r["Fecha"]));
   const reunADSPrev       = reunionesRaw.filter((r) => r["Prospecto"] && inRPrev(r["Fecha de la agenda"]) && r["Canal"].trim().toLowerCase() === "ads mje ig");
   const tiposTotalPrev    = tiposLeadsPrev.reduce((s, r) => s + (parseInt(r["Tipo A"]) || 0) + (parseInt(r["Tipo B"]) || 0) + (parseInt(r["Tipo C"]) || 0) + (parseInt(r["Tipo D"]) || 0), 0);
@@ -175,7 +283,7 @@ export default async function SettingPage({
     agendas: reunADSPrev.filter((r) => matchTipo(r, tipo)).length,
   }));
 
-  // Promedio histórico Tipo A desde 2026 — solo de datos 2026+
+  // Promedio histórico Tipo A desde 2026
   const parseYear = (dateStr: string) => {
     const p = dateStr.trim().split("/");
     if (p.length < 3) return 0;
@@ -190,27 +298,14 @@ export default async function SettingPage({
   const tipoAHistAvg       = tipoALeads2026 > 0 ? (tipoAAgendas2026 / tipoALeads2026) * 100 : null;
   const tipoAHistCierreAvg = tipoAAgendas2026 > 0 ? (tipoACierres2026 / tipoAAgendas2026) * 100 : null;
 
-  // Pie chart data
   const TIPO_COLORS: Record<string, string> = {
-    A: "#10b981", // emerald-500 — verde
-    B: "#eab308", // yellow-500 — amarillo
-    C: "#f87171", // red-400    — rojo clarito
-    D: "#9f1239", // rose-900   — bordo
+    A: "#10b981", B: "#eab308", C: "#f87171", D: "#9f1239",
   };
-  const pieDataCurrent = leadTypesADS.map((t) => ({
-    name: `Tipo ${t.tipo}`,
-    value: t.leads,
-    color: TIPO_COLORS[t.tipo],
-  }));
-  const pieDataPrev = leadTypesADSPrev.map((t) => ({
-    name: `Tipo ${t.tipo}`,
-    value: t.leads,
-    color: TIPO_COLORS[t.tipo],
-  }));
-  const inversionPorTipoA = leadTypesADS[0].leads > 0 && inversion > 0
-    ? inversion / leadTypesADS[0].leads : null;
+  const pieDataCurrent = leadTypesADS.map((t) => ({ name: `Tipo ${t.tipo}`, value: t.leads, color: TIPO_COLORS[t.tipo] }));
+  const pieDataPrev    = leadTypesADSPrev.map((t) => ({ name: `Tipo ${t.tipo}`, value: t.leads, color: TIPO_COLORS[t.tipo] }));
+  const inversionPorTipoA = leadTypesADS[0].leads > 0 && inversion > 0 ? inversion / leadTypesADS[0].leads : null;
 
-  // AD de origen — agendas ADS Mje IG grouped by col E
+  // AD de origen — agendas ADS Mje IG
   const adOrigenStats = (() => {
     const mapa = new Map<string, { agendas: number; cierres: number }>();
     for (const r of reunADS) {
@@ -221,12 +316,10 @@ export default async function SettingPage({
       if (isClosedStatus(r["Status"])) entry.cierres++;
       mapa.set(ad, entry);
     }
-    return [...mapa.entries()]
-      .map(([ad, v]) => ({ ad, ...v }))
-      .sort((a, b) => b.agendas - a.agendas);
+    return [...mapa.entries()].map(([ad, v]) => ({ ad, ...v })).sort((a, b) => b.agendas - a.agendas);
   })();
 
-  // Cumulative funnel (survivors at each stage = everyone who reached that stage OR beyond)
+  // Funnel
   const funnelSteps = [
     { label: "Leads totales", value: totalLeads },
     { label: "Calificados",   value: tiposTotal },
@@ -237,49 +330,23 @@ export default async function SettingPage({
     { label: "Cerrados",      value: cierresADS },
   ];
 
-  // ── SECTION 3: FMA ────────────────────────────────────────────────────────
-
-  const fmaOrigins = FMA_ORIGINS.map((origen) => {
-    const rows    = byCanal(origen);
-    const agendas = rows.length;
-    const cierres = rows.filter((r) => isClosedStatus(r["Status"])).length;
-    const byTipo  = LEAD_TIPOS.map((tipo) => ({
-      tipo,
-      agendas: rows.filter((r) => matchTipo(r, tipo)).length,
-      cierres: rows.filter((r) => matchTipo(r, tipo) && isClosedStatus(r["Status"])).length,
-    })).filter((t) => t.agendas > 0 || t.cierres > 0);
-    return { origen, agendas, cierres, byTipo };
-  });
-
-  // FMA prev period
-  const byCanaPrev = (canal: string) =>
-    reunionesRaw.filter((r) => r["Prospecto"] && inRPrev(r["Fecha de la agenda"]) && r["Canal"].trim().toLowerCase() === canal.trim().toLowerCase());
-  const fmaOriginsPrev = FMA_ORIGINS.map((origen) => ({
-    origen,
-    agendas: byCanaPrev(origen).length,
-    cierres: byCanaPrev(origen).filter((r) => isClosedStatus(r["Status"])).length,
-  }));
-
-  // ── SECTION 4: Outbound ───────────────────────────────────────────────────
+  // ── SECTION OUTBOUND ─────────────────────────────────────────────────────
 
   const inicios       = sumInt(analisisFMA, "Inicios");
-  const tienenNegocio = sumInt(analisisFMA, "Tienen negocio");
   const noNegocio     = sumInt(analisisFMA, "No tienen negocio");
   const neg1          = sumInt(analisisFMA, "Negocio <1 año");
   const neg13         = sumInt(analisisFMA, "Negocio 1-3 años");
   const neg3plus      = sumInt(analisisFMA, "Negocio >3 años");
   const respuestas    = tienenNegocio + noNegocio;
 
-  // Prev period
-  const prevInicios       = sumInt(analisisPrev, "Inicios");
-  const prevTienenNegocio = sumInt(analisisPrev, "Tienen negocio");
+  const prevInicios = sumInt(analisisPrev, "Inicios");
 
   const reunOut     = byCanal("Outbound");
   const cierresOut  = reunOut.filter((r) => isClosedStatus(r["Status"])).length;
-  const neg1Plus    = neg13 + neg3plus; // 1 año o más
+  const neg1Plus    = neg13 + neg3plus;
   const reunOutPrev = reunionesRaw.filter((r) => r["Prospecto"] && inRPrev(r["Fecha de la agenda"]) && r["Canal"].trim().toLowerCase() === "outbound");
   const cierresOutPrev = reunOutPrev.filter((r) => isClosedStatus(r["Status"])).length;
-  const outByTipo  = LEAD_TIPOS.map((tipo) => ({
+  const outByTipo   = LEAD_TIPOS.map((tipo) => ({
     tipo,
     agendas: reunOut.filter((r) => matchTipo(r, tipo)).length,
     cierres: reunOut.filter((r) => matchTipo(r, tipo) && isClosedStatus(r["Status"])).length,
@@ -303,7 +370,7 @@ export default async function SettingPage({
   const adOrigenComentarios = adOrigenByCanal("Comentarios");
   const adOrigenHistorias   = adOrigenByCanal("Historias");
 
-  // ── SECTION 5: Historias ──────────────────────────────────────────────────
+  // ── SECTION HISTORIAS ─────────────────────────────────────────────────────
 
   const reunHist    = byCanal("Historias");
   const cierresHist = reunHist.filter((r) => isClosedStatus(r["Status"])).length;
@@ -325,43 +392,208 @@ export default async function SettingPage({
         actions={<SalesPeriodPicker from={sp.from} to={sp.to} />}
       />
 
-      {/* ── 1. RESUMEN TOTAL ── */}
-      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Resumen Total</h2>
+      {/* ── 1. GENERACIÓN DE AGENDAS ── */}
+      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Generación de Agendas</h2>
+      <div className="card mb-4">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-surface-700">
+                {["Canal", "$ Inversión", "Agendas", "Cierres", "CR%", "Costo/Agenda", "Período anterior", "Var."].map((h) => (
+                  <th key={h} className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase first:text-left">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {/* VSL */}
+              {(() => {
+                const ag = reunVSL.length, agP = reunVSLPrev.length;
+                const ci = reunVSL.filter((r) => isClosedStatus(r["Status"])).length;
+                const c = cpa(gastoVSL, ag), cP = cpa(gastoVSLPrev, agP);
+                const diff = c && cP ? ((c - cP) / cP) * 100 : null;
+                return (
+                  <tr className="border-b border-surface-800/50 hover:bg-surface-800/30">
+                    <td className="px-4 py-3 font-medium text-slate-300">VSL</td>
+                    <td className="px-4 py-3 text-center text-brand-400">{gastoVSL > 0 ? fmtUSD(gastoVSL) : "—"}</td>
+                    <td className="px-4 py-3 text-center text-white font-bold">{ag || "—"}</td>
+                    <td className="px-4 py-3 text-center text-emerald-400 font-bold">{ci || "—"}</td>
+                    <td className="px-4 py-3 text-center text-emerald-400">{pct(ci, ag)}</td>
+                    <td className="px-4 py-3 text-center text-amber-400 font-semibold">{fmtUSD(c)}</td>
+                    <td className="px-4 py-3 text-center text-slate-500">{fmtUSD(cP)}</td>
+                    <td className="px-4 py-3 text-center">
+                      {diff !== null && Math.abs(diff) >= 1 ? (
+                        <span className={`text-xs font-semibold ${diff <= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                          {diff <= 0 ? "▼" : "▲"} {Math.abs(diff).toFixed(0)}%
+                        </span>
+                      ) : "—"}
+                    </td>
+                  </tr>
+                );
+              })()}
+              {/* ADS Mje IG */}
+              {(() => {
+                const ag = reunIG.length, agP = reunIGPrev.length;
+                const ci = reunIG.filter((r) => isClosedStatus(r["Status"])).length;
+                const c = cpa(gastoIG, ag), cP = cpa(gastoIGPrev, agP);
+                const diff = c && cP ? ((c - cP) / cP) * 100 : null;
+                return (
+                  <tr className="border-b border-surface-800/50 hover:bg-surface-800/30">
+                    <td className="px-4 py-3 font-medium text-slate-300">MSG IG</td>
+                    <td className="px-4 py-3 text-center text-brand-400">{gastoIG > 0 ? fmtUSD(gastoIG) : "—"}</td>
+                    <td className="px-4 py-3 text-center text-white font-bold">{ag || "—"}</td>
+                    <td className="px-4 py-3 text-center text-emerald-400 font-bold">{ci || "—"}</td>
+                    <td className="px-4 py-3 text-center text-emerald-400">{pct(ci, ag)}</td>
+                    <td className="px-4 py-3 text-center text-amber-400 font-semibold">{fmtUSD(c)}</td>
+                    <td className="px-4 py-3 text-center text-slate-500">{fmtUSD(cP)}</td>
+                    <td className="px-4 py-3 text-center">
+                      {diff !== null && Math.abs(diff) >= 1 ? (
+                        <span className={`text-xs font-semibold ${diff <= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                          {diff <= 0 ? "▼" : "▲"} {Math.abs(diff).toFixed(0)}%
+                        </span>
+                      ) : "—"}
+                    </td>
+                  </tr>
+                );
+              })()}
+              {/* FMA */}
+              {(() => {
+                const ag = reunFMA.length, agP = reunFMAPrev.length;
+                const ci = reunFMA.filter((r) => isClosedStatus(r["Status"])).length;
+                const c = cpa(gastoFMA, ag), cP = cpa(gastoFMAPrev, agP);
+                const diff = c && cP ? ((c - cP) / cP) * 100 : null;
+                return (
+                  <tr className="border-b border-surface-800/50 hover:bg-surface-800/30">
+                    <td className="px-4 py-3 font-medium text-slate-300">FMA</td>
+                    <td className="px-4 py-3 text-center text-brand-400">{gastoFMA > 0 ? fmtUSD(gastoFMA) : "—"}</td>
+                    <td className="px-4 py-3 text-center text-white font-bold">{ag || "—"}</td>
+                    <td className="px-4 py-3 text-center text-emerald-400 font-bold">{ci || "—"}</td>
+                    <td className="px-4 py-3 text-center text-emerald-400">{pct(ci, ag)}</td>
+                    <td className="px-4 py-3 text-center text-amber-400 font-semibold">{fmtUSD(c)}</td>
+                    <td className="px-4 py-3 text-center text-slate-500">{fmtUSD(cP)}</td>
+                    <td className="px-4 py-3 text-center">
+                      {diff !== null && Math.abs(diff) >= 1 ? (
+                        <span className={`text-xs font-semibold ${diff <= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                          {diff <= 0 ? "▼" : "▲"} {Math.abs(diff).toFixed(0)}%
+                        </span>
+                      ) : "—"}
+                    </td>
+                  </tr>
+                );
+              })()}
+              {/* Individual other canals */}
+              {otrasCanalesNames.map((canal) => {
+                const rows = reuniones.filter((r) => r["Canal"].trim() === canal);
+                const rowsPrev = reunPrev.filter((r) => r["Canal"].trim() === canal);
+                const ag = rows.length, agP = rowsPrev.length;
+                const ci = rows.filter((r) => isClosedStatus(r["Status"])).length;
+                return (
+                  <tr key={canal} className="border-b border-surface-800/50 hover:bg-surface-800/30">
+                    <td className="px-4 py-3 font-medium text-slate-400">{canal}</td>
+                    <td className="px-4 py-3 text-center text-slate-600">—</td>
+                    <td className="px-4 py-3 text-center text-white font-bold">{ag || "—"}</td>
+                    <td className="px-4 py-3 text-center text-emerald-400 font-bold">{ci || "—"}</td>
+                    <td className="px-4 py-3 text-center text-emerald-400">{pct(ci, ag)}</td>
+                    <td className="px-4 py-3 text-center text-slate-600">—</td>
+                    <td className="px-4 py-3 text-center text-slate-500">{agP || "—"}</td>
+                    <td className="px-4 py-3 text-center text-slate-600">—</td>
+                  </tr>
+                );
+              })}
+              {/* TOTAL */}
+              {(() => {
+                const ag  = reunVSL.length + reunIG.length + reunFMA.length + reunOtros.length;
+                const agP = reunVSLPrev.length + reunIGPrev.length + reunFMAPrev.length;
+                const ci  = reuniones.filter((r) => isClosedStatus(r["Status"])).length;
+                const c = cpa(gastoTotal, ag), cP = cpa(gastoTotalPrev, agP);
+                const diff = c && cP ? ((c - cP) / cP) * 100 : null;
+                return (
+                  <tr className="bg-surface-800/40 border-t border-surface-600/50">
+                    <td className="px-4 py-3 font-bold text-white">TOTAL</td>
+                    <td className="px-4 py-3 text-center text-brand-400 font-bold">{fmtUSD(gastoTotal)}</td>
+                    <td className="px-4 py-3 text-center text-white font-bold">{ag}</td>
+                    <td className="px-4 py-3 text-center text-emerald-400 font-bold">{ci || "—"}</td>
+                    <td className="px-4 py-3 text-center text-emerald-400 font-bold">{pct(ci, ag)}</td>
+                    <td className="px-4 py-3 text-center text-amber-400 font-bold">{fmtUSD(c)}</td>
+                    <td className="px-4 py-3 text-center text-slate-500">{fmtUSD(cP)}</td>
+                    <td className="px-4 py-3 text-center">
+                      {diff !== null && Math.abs(diff) >= 1 ? (
+                        <span className={`text-xs font-semibold ${diff <= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                          {diff <= 0 ? "▼" : "▲"} {Math.abs(diff).toFixed(0)}%
+                        </span>
+                      ) : "—"}
+                    </td>
+                  </tr>
+                );
+              })()}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-slate-600 mt-3 px-1">Período anterior: {prev.from} → {prev.to}</p>
+      </div>
+
+      {/* FMA sub-canal breakdown */}
+      {fmaSubBreakdown.length > 0 && (
+        <div className="card mb-8">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">Composición FMA</p>
+          <div className="flex flex-wrap gap-3">
+            {fmaSubBreakdown.map((b) => {
+              const totalFMAag = fmaSubBreakdown.reduce((s, x) => s + x.agendas, 0);
+              const pctAg = totalFMAag > 0 ? ((b.agendas / totalFMAag) * 100).toFixed(0) : "0";
+              const crNum = b.agendas > 0 ? (b.cierres / b.agendas) * 100 : null;
+              return (
+                <div key={b.origen} className="flex-1 min-w-[120px] bg-surface-800/50 border border-surface-700/50 rounded-xl p-3 text-center">
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">{b.origen}</p>
+                  <p className="text-xl font-bold text-white">{b.agendas}</p>
+                  <p className="text-[11px] text-slate-500">{pctAg}% del FMA</p>
+                  {crNum !== null && (
+                    <p className="text-[11px] text-emerald-400 mt-0.5">{b.cierres} ci. · {crNum.toFixed(0)}% CR</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── 2. ANÁLISIS DE LEADS ── */}
+      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Análisis de Leads</h2>
       <div className="card mb-8">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-700">
-                {["Estrategia", "Leads", "Agendas", "% Leads→Ag.", "Cierres", "% Ag.→Cierre"].map((h) => (
+                {["Estrategia", "Leads", "Agendas", "% Leads→Ag.", "Cierres", "% Leads→Cierre"].map((h) => (
                   <th key={h} className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase text-center first:text-left">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {estrategias.map((e) => (
+              {leadsAnalisis.map((e) => (
                 <tr key={e.nombre} className="border-b border-surface-800/50 hover:bg-surface-800/30">
                   <td className="px-4 py-3 font-medium text-slate-300">{e.nombre}</td>
-                  <td className="px-4 py-3 text-center text-slate-400">{e.leads ?? "—"}</td>
+                  <td className="px-4 py-3 text-center text-slate-400">{e.leads > 0 ? e.leads : "—"}</td>
                   <td className="px-4 py-3 text-center font-bold text-white">{e.agendas || "—"}</td>
                   <td className="px-4 py-3 text-center text-brand-400">
-                    {e.leads != null ? pct(e.agendas, e.leads) : "—"}
+                    {e.leads > 0 ? pct(e.agendas, e.leads) : "—"}
                   </td>
                   <td className="px-4 py-3 text-center text-emerald-400 font-bold">{e.cierres || "—"}</td>
-                  <td className="px-4 py-3 text-center text-emerald-400">{pct(e.cierres, e.agendas)}</td>
+                  <td className="px-4 py-3 text-center text-emerald-400">
+                    {e.leads > 0 ? pct(e.cierres, e.leads) : "—"}
+                  </td>
                 </tr>
               ))}
-              {/* Total */}
+              {/* TOTAL */}
               {(() => {
-                const tLeads = estrategias.reduce((s, e) => s + (e.leads ?? 0), 0);
-                const tAg    = estrategias.reduce((s, e) => s + e.agendas, 0);
-                const tCi    = estrategias.reduce((s, e) => s + e.cierres, 0);
+                const tL  = leadsAnalisis.reduce((s, e) => s + e.leads,   0);
+                const tAg = leadsAnalisis.reduce((s, e) => s + e.agendas, 0);
+                const tCi = leadsAnalisis.reduce((s, e) => s + e.cierres, 0);
                 return (
                   <tr className="bg-surface-800/40 border-t border-surface-600/50">
                     <td className="px-4 py-3 font-bold text-white">TOTAL</td>
-                    <td className="px-4 py-3 text-center text-slate-400 font-bold">{tLeads || "—"}</td>
-                    <td className="px-4 py-3 text-center font-bold text-white">{tAg}</td>
+                    <td className="px-4 py-3 text-center text-slate-400 font-bold">{tL > 0 ? tL : "—"}</td>
+                    <td className="px-4 py-3 text-center font-bold text-white">{tAg || "—"}</td>
                     <td className="px-4 py-3 text-center text-brand-400">—</td>
-                    <td className="px-4 py-3 text-center font-bold text-emerald-400">{tCi}</td>
+                    <td className="px-4 py-3 text-center font-bold text-emerald-400">{tCi || "—"}</td>
                     <td className="px-4 py-3 text-center font-bold text-emerald-400">{pct(tCi, tAg)}</td>
                   </tr>
                 );
@@ -371,302 +603,179 @@ export default async function SettingPage({
         </div>
       </div>
 
-      {/* ── 2. ADS MJE IG ── */}
-      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">ADS MJE IG</h2>
-      <div className="card mb-8 space-y-6">
-
-        {/* Por tipo de lead — FIRST */}
-        <div>
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Por tipo de lead</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-surface-700">
-                  {["Tipo", "Leads", "% del total", "Agendas", "% Ag/Leads", "Cierres", "% Cierre/Ag."].map((h) => (
-                    <th key={h} className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase text-center first:text-left">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {leadTypesADS.map((t) => {
-                  const isA         = t.tipo === "A";
-                  const pctTot      = tiposTotal > 0 && t.leads > 0 ? (t.leads / tiposTotal) * 100 : null;
-                  const agLeadsNum  = t.leads > 0 ? (t.agendas / t.leads) * 100 : null;
-                  const cierreAgNum = t.agendas > 0 ? (t.cierres / t.agendas) * 100 : null;
-
-                  // Colors SOLO para Tipo A
-                  const agLeadsColor = !isA ? "text-slate-400"
-                    : agLeadsNum === null ? "text-slate-500"
-                    : agLeadsNum >= 25 ? "text-emerald-400"
-                    : agLeadsNum >= 20 ? "text-amber-400"
-                    : "text-rose-400";
-                  const cierreColor = !isA ? "text-slate-400"
-                    : cierreAgNum === null ? "text-slate-500"
-                    : cierreAgNum >= 25 ? "text-emerald-400"
-                    : cierreAgNum >= 15 ? "text-amber-400"
-                    : "text-rose-400";
-
-                  // Badge Tipo A: actual vs promedio histórico 2026
-                  const diffVsHist  = isA && agLeadsNum !== null && tipoAHistAvg !== null ? agLeadsNum - tipoAHistAvg : null;
-                  const badgeColor  = diffVsHist === null ? "" : diffVsHist > 5 ? "text-emerald-400" : diffVsHist < -5 ? "text-rose-400" : "text-amber-400";
-
-                  return (
-                    <tr key={t.tipo} className="border-b border-surface-800/50 hover:bg-surface-800/30">
-                      <td className="px-4 py-2.5 font-bold text-white">Tipo {t.tipo}</td>
-                      <td className="px-4 py-2.5 text-center text-slate-300">{t.leads || "—"}</td>
-                      <td className="px-4 py-2.5 text-center text-slate-400">
-                        {pctTot !== null ? `${pctTot.toFixed(1)}%` : "—"}
-                      </td>
-                      <td className="px-4 py-2.5 text-center font-bold text-white">{t.agendas || "—"}</td>
-                      <td className={`px-4 py-2.5 text-center font-semibold ${agLeadsColor}`}>
-                        {agLeadsNum !== null ? (
-                          <span className="flex items-center justify-center gap-1.5 flex-wrap">
-                            <span>{agLeadsNum.toFixed(1)}%</span>
-                            {isA && tipoAHistAvg !== null && (
-                              <span className={`text-[10px] font-normal ${badgeColor}`}>
-                                prom {tipoAHistAvg.toFixed(1)}%
-                              </span>
-                            )}
-                          </span>
-                        ) : "—"}
-                      </td>
-                      <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{t.cierres || "—"}</td>
-                      <td className={`px-4 py-2.5 text-center font-semibold ${cierreColor}`}>
-                        {cierreAgNum !== null ? (
-                          <span className="flex items-center justify-center gap-1.5 flex-wrap">
-                            <span>{cierreAgNum.toFixed(1)}%</span>
-                            {isA && tipoAHistCierreAvg !== null && (() => {
-                              const d = cierreAgNum - tipoAHistCierreAvg;
-                              const bc = d > 5 ? "text-emerald-400" : d < -5 ? "text-rose-400" : "text-amber-400";
-                              return <span className={`text-[10px] font-normal ${bc}`}>prom {tipoAHistCierreAvg.toFixed(1)}%</span>;
-                            })()}
-                          </span>
-                        ) : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {/* Total tipos */}
-                <tr className="bg-surface-800/40 border-t border-surface-600/50">
-                  <td className="px-4 py-2.5 font-bold text-white">Total calificados</td>
-                  <td className="px-4 py-2.5 text-center font-bold text-slate-300">{tiposTotal || "—"}</td>
-                  <td className="px-4 py-2.5 text-center text-slate-500">
-                    {totalLeads > 0 ? pct(tiposTotal, totalLeads) : "—"}
-                    {totalLeads > 0 && tiposTotal < totalLeads && (
-                      <span className="ml-1 text-slate-600">de {totalLeads} leads</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 text-center font-bold text-white">{agendado || "—"}</td>
-                  <td className="px-4 py-2.5 text-center font-bold text-brand-400">{pct(agendado, tiposTotal)}</td>
-                  <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{cierresADS || "—"}</td>
-                  <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{pct(cierresADS, agendado)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          {/* Inv./Tipo A */}
-          {inversionPorTipoA != null && (
-            <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
-              <span className="text-amber-400 font-semibold">Inversión / Tipo A:</span>
-              <span className="text-amber-300 font-bold">{fmtUSD(inversionPorTipoA)}</span>
-              <span>·</span>
-              <span>Inversión total: <span className="text-brand-400 font-semibold">{fmtUSD(inversion)}</span></span>
-            </div>
+      {/* ── 3. VSL ── */}
+      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">VSL — Video Sales Letter</h2>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {/* Inversión */}
+        <div className="card">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Inversión</p>
+          <p className="text-2xl font-bold text-brand-400">{fmtUSD(vslInversion)}</p>
+          {vslInversionPrev > 0 && (
+            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+              ant: {fmtUSD(vslInversionPrev)}
+              <VarBadge curr={vslInversion} prev={vslInversionPrev} lowerBetter />
+            </p>
           )}
         </div>
+        {/* Visitas */}
+        <div className="card">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Visitas a la página</p>
+          <p className="text-2xl font-bold text-white">{vslVisitas > 0 ? vslVisitas.toLocaleString() : "—"}</p>
+          {vslCostVisita && (
+            <p className="text-[11px] text-amber-400 mt-0.5">{fmtUSD(vslCostVisita)} / visita</p>
+          )}
+          {vslVisitasPrev > 0 && (
+            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+              ant: {vslVisitasPrev.toLocaleString()}
+              {vslCostVisitaPrev && <span className="text-slate-600">({fmtUSD(vslCostVisitaPrev)})</span>}
+              <VarBadge curr={vslVisitas} prev={vslVisitasPrev} />
+            </p>
+          )}
+        </div>
+        {/* Agendas */}
+        <div className="card">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Agendas</p>
+          <p className="text-2xl font-bold text-white">{vslAgendasReun > 0 ? vslAgendasReun : "—"}</p>
+          {vslCierres > 0 && (
+            <p className="text-[11px] text-emerald-400 mt-0.5">{vslCierres} cierres · {pct(vslCierres, vslAgendasReun)} CR</p>
+          )}
+          {vslAgendasPrevReun > 0 && (
+            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+              ant: {vslAgendasPrevReun}
+              <VarBadge curr={vslAgendasReun} prev={vslAgendasPrevReun} />
+            </p>
+          )}
+        </div>
+        {/* Conversión */}
+        <div className="card">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">% Conversión</p>
+          <p className="text-2xl font-bold text-emerald-400">
+            {vslConversion !== null ? `${vslConversion.toFixed(1)}%` : "—"}
+          </p>
+          <p className="text-[11px] text-slate-600 mt-0.5">agendas / visitas</p>
+          {vslConversionPrev !== null && (
+            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+              ant: {vslConversionPrev.toFixed(1)}%
+              <VarBadge curr={vslConversion ?? 0} prev={vslConversionPrev} />
+            </p>
+          )}
+        </div>
+      </div>
 
-        {/* Pie charts — tipos distribution current vs prev */}
-        <div>
-          <TiposPieCharts
-            current={pieDataCurrent}
-            previous={pieDataPrev}
-          />
+      {/* ── 4. FMA ── */}
+      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">FMA — Follow Me Ads</h2>
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+        {/* Inversión */}
+        <div className="card">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Inversión FMA</p>
+          <p className="text-2xl font-bold text-brand-400">{fmtUSD(gastoFMA)}</p>
+          {gastoFMAPrev > 0 && (
+            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+              ant: {fmtUSD(gastoFMAPrev)}
+              <VarBadge curr={gastoFMA} prev={gastoFMAPrev} lowerBetter />
+            </p>
+          )}
+        </div>
+        {/* Seguidores */}
+        <div className="card">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Seguidores captados</p>
+          <p className="text-2xl font-bold text-white">{fmaSeguidores > 0 ? fmaSeguidores.toLocaleString() : "—"}</p>
+          {fmaCostSeguidor && (
+            <p className="text-[11px] text-amber-400 mt-0.5">{fmtUSD(fmaCostSeguidor)} / seguidor</p>
+          )}
+          {fmaSeguidoresPrev > 0 && (
+            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+              ant: {fmaSeguidoresPrev.toLocaleString()}
+              <VarBadge curr={fmaSeguidores} prev={fmaSeguidoresPrev} />
+            </p>
+          )}
+        </div>
+        {/* Leads totales */}
+        <div className="card">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Leads del ecosistema</p>
+          <p className="text-2xl font-bold text-white">{fmaEcoLeads > 0 ? fmaEcoLeads : "—"}</p>
+          {fmaCostLead && (
+            <p className="text-[11px] text-amber-400 mt-0.5">{fmtUSD(fmaCostLead)} / lead</p>
+          )}
+          <p className="text-[10px] text-slate-600 mt-0.5">FMA cmt + Outbound + Historias</p>
+        </div>
+        {/* Agendas FMA */}
+        <div className="card">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Agendas FMA</p>
+          <p className="text-2xl font-bold text-white">{fmaAgendasFMA > 0 ? fmaAgendasFMA : "—"}</p>
+          {fmaEcoLeads > 0 && fmaAgendasFMA > 0 && (
+            <p className="text-[11px] text-brand-400 mt-0.5">{pct(fmaAgendasFMA, fmaEcoLeads)} de leads</p>
+          )}
+          {fmaAgendasFMAPrev > 0 && (
+            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+              ant: {fmaAgendasFMAPrev}
+              <VarBadge curr={fmaAgendasFMA} prev={fmaAgendasFMAPrev} />
+            </p>
+          )}
+        </div>
+        {/* Cierres FMA */}
+        <div className="card">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Cierres FMA</p>
+          <p className="text-2xl font-bold text-emerald-400">{fmaCierresFMA > 0 ? fmaCierresFMA : "—"}</p>
+          {fmaAgendasFMA > 0 && (
+            <p className="text-[11px] text-emerald-400 mt-0.5">{pct(fmaCierresFMA, fmaAgendasFMA)} CR</p>
+          )}
+          {fmaCierresFMAPrev > 0 && (
+            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+              ant: {fmaCierresFMAPrev}
+              <VarBadge curr={fmaCierresFMA} prev={fmaCierresFMAPrev} />
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* ── 5. HISTORIAS ── */}
+      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 mt-8">Historias</h2>
+      <div className="card mb-4">
+        <div className="grid grid-cols-3 gap-4 mb-5">
+          {[
+            { label: "Leads",   value: historiasLeads > 0 ? historiasLeads : "—", color: historiasLeads > 0 ? "text-white" : "text-slate-500", note: null },
+            { label: "Agendas", value: reunHist.length || "—", color: "text-white",     note: null },
+            { label: "Cierres", value: cierresHist || "—",     color: "text-emerald-400", note: pct(cierresHist, reunHist.length) + " de ag." },
+          ].map((k) => (
+            <div key={k.label} className="bg-surface-800/50 rounded-xl p-4 text-center border border-surface-700/50">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">{k.label}</p>
+              <p className={`text-2xl font-bold ${k.color}`}>{k.value}</p>
+              {k.note && <p className="text-[10px] text-slate-600 mt-0.5">{k.note}</p>}
+            </div>
+          ))}
         </div>
 
-        {/* AD de origen — agendas por origen de ad */}
-        {adOrigenStats.length > 0 && (
-          <div>
-            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">AD de origen — agendas</h3>
+        {histByTipo.length > 0 && (
+          <>
+            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Por tipo de lead</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-surface-700">
-                    {["AD de origen", "Agendas", "Cierres", "% Cierre"].map((h) => (
+                    {["Tipo", "Agendas", "Cierres", "CR%"].map((h) => (
                       <th key={h} className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase text-center first:text-left">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {adOrigenStats.map((a) => {
-                    const crNum = a.agendas > 0 ? (a.cierres / a.agendas) * 100 : null;
-                    const crColor = crNum === null ? "text-slate-500"
-                      : crNum >= 25 ? "text-emerald-400"
-                      : crNum >= 15 ? "text-amber-400"
-                      : "text-rose-400";
-                    return (
-                      <tr key={a.ad} className="border-b border-surface-800/50 hover:bg-surface-800/30">
-                        <td className="px-4 py-2.5 font-medium text-slate-300">{a.ad}</td>
-                        <td className="px-4 py-2.5 text-center font-bold text-white">{a.agendas}</td>
-                        <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{a.cierres || "—"}</td>
-                        <td className={`px-4 py-2.5 text-center font-semibold ${crColor}`}>
-                          {crNum !== null ? `${crNum.toFixed(1)}%` : "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {histByTipo.map((t) => (
+                    <tr key={t.tipo} className="border-b border-surface-800/50 hover:bg-surface-800/30">
+                      <td className="px-4 py-2.5 font-bold text-white">Tipo {t.tipo}</td>
+                      <td className="px-4 py-2.5 text-center text-white">{t.agendas}</td>
+                      <td className="px-4 py-2.5 text-center text-emerald-400 font-bold">{t.cierres || "—"}</td>
+                      <td className="px-4 py-2.5 text-center text-emerald-400">{pct(t.cierres, t.agendas)}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
-          </div>
+          </>
         )}
 
-        {/* Horizontal Funnel — THIRD */}
-        <div>
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">
-            Embudo de conversión
-          </h3>
-          <div className="space-y-2">
-            {funnelSteps.map((step, i) => {
-              const base  = funnelSteps[0].value;
-              const width = base > 0 ? Math.max((step.value / base) * 100, 6) : 6;
-              const lost  = i > 0 ? funnelSteps[i - 1].value - step.value : null;
-              const convPrev = i > 0 && funnelSteps[i - 1].value > 0
-                ? ((step.value / funnelSteps[i - 1].value) * 100).toFixed(0) + "%"
-                : null;
-
-              // Color: green at top, fades to brand blue, emerald for closed
-              const barColor = i === 0
-                ? "#4A5BBD"
-                : i === funnelSteps.length - 1
-                ? "#059669"
-                : "#2B3990";
-
-              return (
-                <div key={step.label} className="flex items-center gap-3 group">
-                  {/* Label */}
-                  <div className="w-24 text-right shrink-0">
-                    <span className="text-xs text-slate-400 group-hover:text-slate-200 transition-colors">
-                      {step.label}
-                    </span>
-                  </div>
-
-                  {/* Bar track */}
-                  <div className="flex-1 h-8 bg-surface-800/60 rounded overflow-hidden relative">
-                    <div
-                      className="h-full rounded flex items-center px-3 gap-2 transition-all duration-300"
-                      style={{ width: `${width}%`, backgroundColor: barColor }}
-                    >
-                      <span className="text-sm font-bold text-white tabular-nums whitespace-nowrap">
-                        {step.value > 0 ? step.value : "—"}
-                      </span>
-                      {convPrev && step.value > 0 && (
-                        <span className="text-[10px] text-white/60 hidden sm:inline">{convPrev}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Lost badge */}
-                  <div className="w-24 shrink-0">
-                    {lost != null && lost > 0 && (
-                      <span className="text-xs text-rose-400/80 tabular-nums">
-                        −{lost} <span className="text-rose-400/40 text-[10px]">perdidos</span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Bottom note */}
-          <p className="mt-3 text-[10px] text-slate-600">
-            Los valores son acumulativos: cada etapa incluye a todos los que llegaron a esa etapa o más avanzada.
-          </p>
-        </div>
-      </div>
-
-      {/* ── 3. FMA ── */}
-      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">FMA — Follow Me Ads</h2>
-      <div className="card mb-8">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-surface-700">
-                {["Origen", "Agendas", "Cierres", "CR%", "Por tipo"].map((h) => (
-                  <th key={h} className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase text-center first:text-left">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {fmaOrigins.map((o, i) => {
-                const op = fmaOriginsPrev[i];
-                const agDiff  = op.agendas > 0 ? o.agendas - op.agendas : null;
-                const ciDiff  = op.cierres > 0 || o.cierres > 0 ? o.cierres - op.cierres : null;
-                return (
-                  <tr key={o.origen} className="border-b border-surface-800/50 hover:bg-surface-800/30">
-                    <td className="px-4 py-3 font-medium text-slate-300">{o.origen}</td>
-                    <td className="px-4 py-3 text-center font-bold text-white">
-                      {o.agendas || "—"}
-                      {agDiff !== null && (
-                        <span className={`ml-1.5 text-[10px] font-semibold ${agDiff >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                          {agDiff >= 0 ? "▲" : "▼"}{Math.abs(agDiff)}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center font-bold text-emerald-400">
-                      {o.cierres || "—"}
-                      {ciDiff !== null && (
-                        <span className={`ml-1.5 text-[10px] font-semibold ${ciDiff >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                          {ciDiff >= 0 ? "▲" : "▼"}{Math.abs(ciDiff)}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center text-emerald-400">{pct(o.cierres, o.agendas)}</td>
-                    <td className="px-4 py-3 text-center">
-                      {o.byTipo.length > 0 ? (
-                        <span className="flex gap-1.5 justify-center flex-wrap">
-                          {o.byTipo.map((t) => (
-                            <span key={t.tipo} className="text-[11px] bg-surface-800 border border-surface-700 rounded px-2 py-0.5">
-                              <span className="text-slate-500">T{t.tipo}:</span>
-                              <span className="text-white ml-1 font-semibold">{t.agendas}</span>
-                              {t.cierres > 0 && <span className="text-emerald-400 ml-1">({t.cierres}✓)</span>}
-                            </span>
-                          ))}
-                        </span>
-                      ) : "—"}
-                    </td>
-                  </tr>
-                );
-              })}
-              {(() => {
-                const tAg  = fmaOrigins.reduce((s, o) => s + o.agendas, 0);
-                const tCi  = fmaOrigins.reduce((s, o) => s + o.cierres, 0);
-                const tAgP = fmaOriginsPrev.reduce((s, o) => s + o.agendas, 0);
-                const tCiP = fmaOriginsPrev.reduce((s, o) => s + o.cierres, 0);
-                return (
-                  <>
-                    <tr className="bg-surface-800/40 border-t border-surface-600/50">
-                      <td className="px-4 py-3 font-bold text-white">Total FMA</td>
-                      <td className="px-4 py-3 text-center font-bold text-white">{tAg || "—"}</td>
-                      <td className="px-4 py-3 text-center font-bold text-emerald-400">{tCi || "—"}</td>
-                      <td className="px-4 py-3 text-center font-bold text-emerald-400">{pct(tCi, tAg)}</td>
-                      <td />
-                    </tr>
-                    {tAgP > 0 && (
-                      <tr className="border-t border-surface-700/30 bg-surface-900/40">
-                        <td className="px-4 py-2 text-[11px] text-slate-600 italic">Período ant.</td>
-                        <td className="px-4 py-2 text-center text-[11px] text-slate-600">{tAgP}</td>
-                        <td className="px-4 py-2 text-center text-[11px] text-slate-600">{tCiP || "—"}</td>
-                        <td className="px-4 py-2 text-center text-[11px] text-slate-600">{pct(tCiP, tAgP)}</td>
-                        <td />
-                      </tr>
-                    )}
-                  </>
-                );
-              })()}
-            </tbody>
-          </table>
-        </div>
+        {histByTipo.length === 0 && reunHist.length === 0 && (
+          <p className="text-sm text-slate-500 text-center py-4">Sin datos en el período</p>
+        )}
       </div>
 
       {/* ── AD de origen: Comentarios + Historias ── */}
@@ -708,7 +817,7 @@ export default async function SettingPage({
         </div>
       )}
 
-      {/* ── 4. OUTBOUND ── */}
+      {/* ── 6. OUTBOUND ── */}
       <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Outbound</h2>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-8">
 
@@ -843,53 +952,203 @@ export default async function SettingPage({
         </div>
       </div>
 
-      {/* ── 5. HISTORIAS ── */}
-      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Historias</h2>
-      <div className="card">
-        <div className="grid grid-cols-3 gap-4 mb-5">
-          {[
-            { label: "Leads",   value: "—",                    color: "text-slate-500", note: "Próximamente" },
-            { label: "Agendas", value: reunHist.length || "—", color: "text-white",     note: null },
-            { label: "Cierres", value: cierresHist || "—",     color: "text-emerald-400", note: pct(cierresHist, reunHist.length) + " de ag." },
-          ].map((k) => (
-            <div key={k.label} className="bg-surface-800/50 rounded-xl p-4 text-center border border-surface-700/50">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">{k.label}</p>
-              <p className={`text-2xl font-bold ${k.color}`}>{k.value}</p>
-              {k.note && <p className="text-[10px] text-slate-600 mt-0.5">{k.note}</p>}
+      {/* ── 7. ADS MJE IG ── */}
+      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">ADS MJE IG</h2>
+      <div className="card mb-8 space-y-6">
+
+        {/* Por tipo de lead */}
+        <div>
+          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Por tipo de lead</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-surface-700">
+                  {["Tipo", "Leads", "% del total", "Agendas", "% Ag/Leads", "Cierres", "% Cierre/Ag."].map((h) => (
+                    <th key={h} className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase text-center first:text-left">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {leadTypesADS.map((t) => {
+                  const isA         = t.tipo === "A";
+                  const pctTot      = tiposTotal > 0 && t.leads > 0 ? (t.leads / tiposTotal) * 100 : null;
+                  const agLeadsNum  = t.leads > 0 ? (t.agendas / t.leads) * 100 : null;
+                  const cierreAgNum = t.agendas > 0 ? (t.cierres / t.agendas) * 100 : null;
+
+                  const agLeadsColor = !isA ? "text-slate-400"
+                    : agLeadsNum === null ? "text-slate-500"
+                    : agLeadsNum >= 25 ? "text-emerald-400"
+                    : agLeadsNum >= 20 ? "text-amber-400"
+                    : "text-rose-400";
+                  const cierreColor = !isA ? "text-slate-400"
+                    : cierreAgNum === null ? "text-slate-500"
+                    : cierreAgNum >= 25 ? "text-emerald-400"
+                    : cierreAgNum >= 15 ? "text-amber-400"
+                    : "text-rose-400";
+
+                  const diffVsHist  = isA && agLeadsNum !== null && tipoAHistAvg !== null ? agLeadsNum - tipoAHistAvg : null;
+                  const badgeColor  = diffVsHist === null ? "" : diffVsHist > 5 ? "text-emerald-400" : diffVsHist < -5 ? "text-rose-400" : "text-amber-400";
+
+                  return (
+                    <tr key={t.tipo} className="border-b border-surface-800/50 hover:bg-surface-800/30">
+                      <td className="px-4 py-2.5 font-bold text-white">Tipo {t.tipo}</td>
+                      <td className="px-4 py-2.5 text-center text-slate-300">{t.leads || "—"}</td>
+                      <td className="px-4 py-2.5 text-center text-slate-400">
+                        {pctTot !== null ? `${pctTot.toFixed(1)}%` : "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-center font-bold text-white">{t.agendas || "—"}</td>
+                      <td className={`px-4 py-2.5 text-center font-semibold ${agLeadsColor}`}>
+                        {agLeadsNum !== null ? (
+                          <span className="flex items-center justify-center gap-1.5 flex-wrap">
+                            <span>{agLeadsNum.toFixed(1)}%</span>
+                            {isA && tipoAHistAvg !== null && (
+                              <span className={`text-[10px] font-normal ${badgeColor}`}>
+                                prom {tipoAHistAvg.toFixed(1)}%
+                              </span>
+                            )}
+                          </span>
+                        ) : "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{t.cierres || "—"}</td>
+                      <td className={`px-4 py-2.5 text-center font-semibold ${cierreColor}`}>
+                        {cierreAgNum !== null ? (
+                          <span className="flex items-center justify-center gap-1.5 flex-wrap">
+                            <span>{cierreAgNum.toFixed(1)}%</span>
+                            {isA && tipoAHistCierreAvg !== null && (() => {
+                              const d = cierreAgNum - tipoAHistCierreAvg;
+                              const bc = d > 5 ? "text-emerald-400" : d < -5 ? "text-rose-400" : "text-amber-400";
+                              return <span className={`text-[10px] font-normal ${bc}`}>prom {tipoAHistCierreAvg.toFixed(1)}%</span>;
+                            })()}
+                          </span>
+                        ) : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {/* Total tipos */}
+                <tr className="bg-surface-800/40 border-t border-surface-600/50">
+                  <td className="px-4 py-2.5 font-bold text-white">Total calificados</td>
+                  <td className="px-4 py-2.5 text-center font-bold text-slate-300">{tiposTotal || "—"}</td>
+                  <td className="px-4 py-2.5 text-center text-slate-500">
+                    {totalLeads > 0 ? pct(tiposTotal, totalLeads) : "—"}
+                    {totalLeads > 0 && tiposTotal < totalLeads && (
+                      <span className="ml-1 text-slate-600">de {totalLeads} leads</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-center font-bold text-white">{agendado || "—"}</td>
+                  <td className="px-4 py-2.5 text-center font-bold text-brand-400">{pct(agendado, tiposTotal)}</td>
+                  <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{cierresADS || "—"}</td>
+                  <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{pct(cierresADS, agendado)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          {/* Inv./Tipo A */}
+          {inversionPorTipoA != null && (
+            <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+              <span className="text-amber-400 font-semibold">Inversión / Tipo A:</span>
+              <span className="text-amber-300 font-bold">{fmtUSD(inversionPorTipoA)}</span>
+              <span>·</span>
+              <span>Inversión total: <span className="text-brand-400 font-semibold">{fmtUSD(inversion)}</span></span>
             </div>
-          ))}
+          )}
         </div>
 
-        {histByTipo.length > 0 && (
-          <>
-            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Por tipo de lead</h3>
+        {/* Pie charts */}
+        <div>
+          <TiposPieCharts current={pieDataCurrent} previous={pieDataPrev} />
+        </div>
+
+        {/* AD de origen */}
+        {adOrigenStats.length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">AD de origen — agendas</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-surface-700">
-                    {["Tipo", "Agendas", "Cierres", "CR%"].map((h) => (
+                    {["AD de origen", "Agendas", "Cierres", "% Cierre"].map((h) => (
                       <th key={h} className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase text-center first:text-left">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {histByTipo.map((t) => (
-                    <tr key={t.tipo} className="border-b border-surface-800/50 hover:bg-surface-800/30">
-                      <td className="px-4 py-2.5 font-bold text-white">Tipo {t.tipo}</td>
-                      <td className="px-4 py-2.5 text-center text-white">{t.agendas}</td>
-                      <td className="px-4 py-2.5 text-center text-emerald-400 font-bold">{t.cierres || "—"}</td>
-                      <td className="px-4 py-2.5 text-center text-emerald-400">{pct(t.cierres, t.agendas)}</td>
-                    </tr>
-                  ))}
+                  {adOrigenStats.map((a) => {
+                    const crNum = a.agendas > 0 ? (a.cierres / a.agendas) * 100 : null;
+                    const crColor = crNum === null ? "text-slate-500"
+                      : crNum >= 25 ? "text-emerald-400"
+                      : crNum >= 15 ? "text-amber-400"
+                      : "text-rose-400";
+                    return (
+                      <tr key={a.ad} className="border-b border-surface-800/50 hover:bg-surface-800/30">
+                        <td className="px-4 py-2.5 font-medium text-slate-300">{a.ad}</td>
+                        <td className="px-4 py-2.5 text-center font-bold text-white">{a.agendas}</td>
+                        <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{a.cierres || "—"}</td>
+                        <td className={`px-4 py-2.5 text-center font-semibold ${crColor}`}>
+                          {crNum !== null ? `${crNum.toFixed(1)}%` : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
-          </>
+          </div>
         )}
 
-        {histByTipo.length === 0 && reunHist.length === 0 && (
-          <p className="text-sm text-slate-500 text-center py-4">Sin datos en el período</p>
-        )}
+        {/* Embudo de conversión */}
+        <div>
+          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">
+            Embudo de conversión
+          </h3>
+          <div className="space-y-2">
+            {funnelSteps.map((step, i) => {
+              const base  = funnelSteps[0].value;
+              const width = base > 0 ? Math.max((step.value / base) * 100, 6) : 6;
+              const lost  = i > 0 ? funnelSteps[i - 1].value - step.value : null;
+              const convPrev = i > 0 && funnelSteps[i - 1].value > 0
+                ? ((step.value / funnelSteps[i - 1].value) * 100).toFixed(0) + "%"
+                : null;
+              const barColor = i === 0
+                ? "#4A5BBD"
+                : i === funnelSteps.length - 1
+                ? "#059669"
+                : "#2B3990";
+              return (
+                <div key={step.label} className="flex items-center gap-3 group">
+                  <div className="w-24 text-right shrink-0">
+                    <span className="text-xs text-slate-400 group-hover:text-slate-200 transition-colors">
+                      {step.label}
+                    </span>
+                  </div>
+                  <div className="flex-1 h-8 bg-surface-800/60 rounded overflow-hidden relative">
+                    <div
+                      className="h-full rounded flex items-center px-3 gap-2 transition-all duration-300"
+                      style={{ width: `${width}%`, backgroundColor: barColor }}
+                    >
+                      <span className="text-sm font-bold text-white tabular-nums whitespace-nowrap">
+                        {step.value > 0 ? step.value : "—"}
+                      </span>
+                      {convPrev && step.value > 0 && (
+                        <span className="text-[10px] text-white/60 hidden sm:inline">{convPrev}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="w-24 shrink-0">
+                    {lost != null && lost > 0 && (
+                      <span className="text-xs text-rose-400/80 tabular-nums">
+                        −{lost} <span className="text-rose-400/40 text-[10px]">perdidos</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-3 text-[10px] text-slate-600">
+            Los valores son acumulativos: cada etapa incluye a todos los que llegaron a esa etapa o más avanzada.
+          </p>
+        </div>
       </div>
     </div>
   );

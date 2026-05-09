@@ -375,7 +375,7 @@ export async function getMarketingInversion() {
 }
 
 export async function getMarketingVSL() {
-  const rows = await getSheet(process.env.SHEET_ID_SETTING!, "VSL!A:D");
+  const rows = await getSheet(process.env.SHEET_ID_SETTING!, "VSL!A:F");
   return rowsToObjects(rows);
 }
 

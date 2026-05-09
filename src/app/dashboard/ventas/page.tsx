@@ -203,63 +203,7 @@ export default async function VentasPage({
         actions={<SalesPeriodPicker from={sp.from} to={sp.to} />}
       />
 
-      {/* ── 1. GENERACIÓN DE AGENDAS ── */}
-      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Generación de Agendas</h2>
-      <div className="card mb-8">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-surface-700">
-                {["Canal", "$ Inversión", "Agendas", "Costo/Agenda", "Período anterior", "Var."].map((h) => (
-                  <th key={h} className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase first:text-left">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {([
-                { nombre: "VSL",    gasto: gastos.vsl,   ag: agendas.vsl.length,    cpa: cpaCurr.vsl,   cpaP: cpaPrev.vsl   },
-                { nombre: "MSG IG", gasto: gastos.ig,    ag: agendas.ig.length,     cpa: cpaCurr.ig,    cpaP: cpaPrev.ig    },
-                { nombre: "FMA",    gasto: gastos.fma,   ag: agendas.fma.length,    cpa: cpaCurr.fma,   cpaP: cpaPrev.fma   },
-                { nombre: "Otras",  gasto: 0,            ag: agendas.otras.length,  cpa: null,          cpaP: null          },
-              ]).map(({ nombre, gasto, ag, cpa: c, cpaP }) => {
-                const diff = c && cpaP ? diffArrow(c, cpaP, true) : null;
-                return (
-                  <tr key={nombre} className="border-b border-surface-800/50 hover:bg-surface-800/30">
-                    <td className="px-4 py-3 font-medium text-slate-300">{nombre}</td>
-                    <td className="px-4 py-3 text-center text-brand-400">{gasto > 0 ? fmtUSD(gasto) : "—"}</td>
-                    <td className="px-4 py-3 text-center text-white font-bold text-base">{ag}</td>
-                    <td className="px-4 py-3 text-center text-amber-400 font-semibold">{fmtUSD(c)}</td>
-                    <td className="px-4 py-3 text-center text-slate-500">{fmtUSD(cpaP)}</td>
-                    <td className="px-4 py-3 text-center">
-                      {diff ? (
-                        <span className={`text-xs font-semibold ${diff.good ? "text-emerald-400" : "text-rose-400"}`}>
-                          {diff.good ? "▼" : "▲"} {diff.text}
-                        </span>
-                      ) : "—"}
-                    </td>
-                  </tr>
-                );
-              })}
-              <tr className="bg-surface-800/40">
-                <td className="px-4 py-3 font-bold text-white">TOTAL</td>
-                <td className="px-4 py-3 text-center text-brand-400 font-bold">{fmtUSD(gastos.total)}</td>
-                <td className="px-4 py-3 text-center text-white font-bold text-base">{agendas.all.length}</td>
-                <td className="px-4 py-3 text-center text-amber-400 font-bold">{fmtUSD(cpaCurr.total)}</td>
-                <td className="px-4 py-3 text-center text-slate-500">{fmtUSD(cpaPrev.total)}</td>
-                <td className="px-4 py-3 text-center">
-                  {(() => {
-                    const d = cpaCurr.total && cpaPrev.total ? diffArrow(cpaCurr.total, cpaPrev.total, true) : null;
-                    return d ? <span className={`text-xs font-semibold ${d.good ? "text-emerald-400" : "text-rose-400"}`}>{d.good ? "▼" : "▲"} {d.text}</span> : "—";
-                  })()}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p className="text-xs text-slate-600 mt-3 px-1">Período anterior: {prev.from} → {prev.to}</p>
-      </div>
-
-      {/* ── 2. CLOSING ── */}
+      {/* ── CLOSING ── */}
       <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Closing</h2>
 
       {(nsCancelPct > 35 || ccPct < 30) && (
@@ -344,7 +288,7 @@ export default async function VentasPage({
         </div>
       )}
 
-      {/* ── 3. CANALES ── */}
+      {/* ── CANALES ── */}
       <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Clientes por Canal</h2>
       <div className="card">
         <div className="overflow-x-auto">
@@ -532,7 +476,7 @@ export default async function VentasPage({
         </div>
       </div>
 
-      {/* ── 4. ANTIGÜEDAD DEL NEGOCIO ── */}
+      {/* ── ANTIGÜEDAD DEL NEGOCIO ── */}
       {(() => {
         const ANT_ORDER = ["< 1 año", "1-3 años", "> 3 años"];
         type AntEntry = { agendas: number; noPres: number; nsCanc: number; efectivas: number; cierres: number };
