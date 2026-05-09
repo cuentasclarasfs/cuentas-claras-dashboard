@@ -285,6 +285,24 @@ export default async function SettingPage({
     cierres: reunOut.filter((r) => matchTipo(r, tipo) && isClosedStatus(r["Status"])).length,
   })).filter((t) => t.agendas > 0 || t.cierres > 0);
 
+  // ── AD de origen por canal (Comentarios / Historias) ─────────────────────
+  function adOrigenByCanal(canalName: string) {
+    const rows = reunionesRaw.filter(
+      (r) => r["Prospecto"] && inR(r["Fecha de la agenda"]) &&
+             r["Canal"].trim().toLowerCase() === canalName.toLowerCase()
+    );
+    const map: Record<string, { agendas: number; cierres: number }> = {};
+    for (const r of rows) {
+      const ad = (r["AD de origen"] ?? "").trim() || "(sin AD)";
+      if (!map[ad]) map[ad] = { agendas: 0, cierres: 0 };
+      map[ad].agendas++;
+      if (isClosedStatus(r["Status"])) map[ad].cierres++;
+    }
+    return Object.entries(map).sort((a, b) => b[1].agendas - a[1].agendas);
+  }
+  const adOrigenComentarios = adOrigenByCanal("Comentarios");
+  const adOrigenHistorias   = adOrigenByCanal("Historias");
+
   // ── SECTION 5: Historias ──────────────────────────────────────────────────
 
   const reunHist    = byCanal("Historias");
@@ -650,6 +668,45 @@ export default async function SettingPage({
           </table>
         </div>
       </div>
+
+      {/* ── AD de origen: Comentarios + Historias ── */}
+      {(adOrigenComentarios.length > 0 || adOrigenHistorias.length > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+          {[
+            { label: "Comentarios — por AD", data: adOrigenComentarios },
+            { label: "Historias — por AD",   data: adOrigenHistorias   },
+          ].map(({ label, data }) => (
+            <div key={label} className="card">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">{label}</p>
+              {data.length === 0 ? (
+                <p className="text-xs text-slate-600 text-center py-2">Sin datos en el período</p>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-surface-700">
+                      {["AD de origen", "Ag.", "Ci.", "CR%"].map((h) => (
+                        <th key={h} className={`pb-1.5 text-[10px] font-semibold text-slate-500 uppercase ${h === "AD de origen" ? "text-left" : "text-right"}`}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.map(([ad, s]) => (
+                      <tr key={ad} className="border-b border-surface-800/50 hover:bg-surface-800/30">
+                        <td className="py-1.5 text-slate-300">{ad}</td>
+                        <td className="py-1.5 text-right text-white font-semibold">{s.agendas}</td>
+                        <td className="py-1.5 text-right text-emerald-400 font-semibold">{s.cierres || "—"}</td>
+                        <td className="py-1.5 text-right text-slate-400">
+                          {s.agendas > 0 ? `${((s.cierres / s.agendas) * 100).toFixed(0)}%` : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── 4. OUTBOUND ── */}
       <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Outbound</h2>
