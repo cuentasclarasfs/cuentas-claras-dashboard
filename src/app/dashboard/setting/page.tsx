@@ -399,103 +399,57 @@ export default async function SettingPage({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-700">
-                {["Canal", "$ Inversión", "Agendas", "Cierres", "CR%", "Costo/Agenda", "Período anterior", "Var."].map((h) => (
+                {["Canal", "$ Inversión", "Agendas", "Costo/Agenda", "Costo/Cliente", "Cierres", "CR%"].map((h) => (
                   <th key={h} className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase first:text-left">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {/* VSL */}
-              {(() => {
-                const ag = reunVSL.length, agP = reunVSLPrev.length;
-                const ci = reunVSL.filter((r) => isClosedStatus(r["Status"])).length;
-                const c = cpa(gastoVSL, ag), cP = cpa(gastoVSLPrev, agP);
-                const diff = c && cP ? ((c - cP) / cP) * 100 : null;
-                return (
-                  <tr className="border-b border-surface-800/50 hover:bg-surface-800/30">
-                    <td className="px-4 py-3 font-medium text-slate-300">VSL</td>
-                    <td className="px-4 py-3 text-center text-brand-400">{gastoVSL > 0 ? fmtUSD(gastoVSL) : "—"}</td>
-                    <td className="px-4 py-3 text-center text-white font-bold">{ag || "—"}</td>
-                    <td className="px-4 py-3 text-center text-emerald-400 font-bold">{ci || "—"}</td>
-                    <td className="px-4 py-3 text-center text-emerald-400">{pct(ci, ag)}</td>
-                    <td className="px-4 py-3 text-center text-amber-400 font-semibold">{fmtUSD(c)}</td>
-                    <td className="px-4 py-3 text-center text-slate-500">{fmtUSD(cP)}</td>
-                    <td className="px-4 py-3 text-center">
-                      {diff !== null && Math.abs(diff) >= 1 ? (
-                        <span className={`text-xs font-semibold ${diff <= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                          {diff <= 0 ? "▼" : "▲"} {Math.abs(diff).toFixed(0)}%
-                        </span>
-                      ) : "—"}
-                    </td>
-                  </tr>
-                );
-              })()}
-              {/* ADS Mje IG */}
-              {(() => {
-                const ag = reunIG.length, agP = reunIGPrev.length;
-                const ci = reunIG.filter((r) => isClosedStatus(r["Status"])).length;
-                const c = cpa(gastoIG, ag), cP = cpa(gastoIGPrev, agP);
-                const diff = c && cP ? ((c - cP) / cP) * 100 : null;
-                return (
-                  <tr className="border-b border-surface-800/50 hover:bg-surface-800/30">
-                    <td className="px-4 py-3 font-medium text-slate-300">MSG IG</td>
-                    <td className="px-4 py-3 text-center text-brand-400">{gastoIG > 0 ? fmtUSD(gastoIG) : "—"}</td>
-                    <td className="px-4 py-3 text-center text-white font-bold">{ag || "—"}</td>
-                    <td className="px-4 py-3 text-center text-emerald-400 font-bold">{ci || "—"}</td>
-                    <td className="px-4 py-3 text-center text-emerald-400">{pct(ci, ag)}</td>
-                    <td className="px-4 py-3 text-center text-amber-400 font-semibold">{fmtUSD(c)}</td>
-                    <td className="px-4 py-3 text-center text-slate-500">{fmtUSD(cP)}</td>
-                    <td className="px-4 py-3 text-center">
-                      {diff !== null && Math.abs(diff) >= 1 ? (
-                        <span className={`text-xs font-semibold ${diff <= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                          {diff <= 0 ? "▼" : "▲"} {Math.abs(diff).toFixed(0)}%
-                        </span>
-                      ) : "—"}
-                    </td>
-                  </tr>
-                );
-              })()}
-              {/* FMA */}
-              {(() => {
-                const ag = reunFMA.length, agP = reunFMAPrev.length;
-                const ci = reunFMA.filter((r) => isClosedStatus(r["Status"])).length;
-                const c = cpa(gastoFMA, ag), cP = cpa(gastoFMAPrev, agP);
-                const diff = c && cP ? ((c - cP) / cP) * 100 : null;
-                return (
-                  <tr className="border-b border-surface-800/50 hover:bg-surface-800/30">
-                    <td className="px-4 py-3 font-medium text-slate-300">FMA</td>
-                    <td className="px-4 py-3 text-center text-brand-400">{gastoFMA > 0 ? fmtUSD(gastoFMA) : "—"}</td>
-                    <td className="px-4 py-3 text-center text-white font-bold">{ag || "—"}</td>
-                    <td className="px-4 py-3 text-center text-emerald-400 font-bold">{ci || "—"}</td>
-                    <td className="px-4 py-3 text-center text-emerald-400">{pct(ci, ag)}</td>
-                    <td className="px-4 py-3 text-center text-amber-400 font-semibold">{fmtUSD(c)}</td>
-                    <td className="px-4 py-3 text-center text-slate-500">{fmtUSD(cP)}</td>
-                    <td className="px-4 py-3 text-center">
-                      {diff !== null && Math.abs(diff) >= 1 ? (
-                        <span className={`text-xs font-semibold ${diff <= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                          {diff <= 0 ? "▼" : "▲"} {Math.abs(diff).toFixed(0)}%
-                        </span>
-                      ) : "—"}
-                    </td>
-                  </tr>
-                );
-              })()}
-              {/* Individual other canals */}
-              {otrasCanalesNames.map((canal) => {
-                const rows = reuniones.filter((r) => r["Canal"].trim() === canal);
-                const rowsPrev = reunPrev.filter((r) => r["Canal"].trim() === canal);
+              {/* Helper: renders a cost cell with prev period small below */}
+              {[
+                { nombre: "VSL",   gasto: gastoVSL,  gastoPrev: gastoVSLPrev, rows: reunVSL,  rowsPrev: reunVSLPrev },
+                { nombre: "MSG IG",gasto: gastoIG,   gastoPrev: gastoIGPrev,  rows: reunIG,   rowsPrev: reunIGPrev  },
+                { nombre: "FMA",   gasto: gastoFMA,  gastoPrev: gastoFMAPrev, rows: reunFMA,  rowsPrev: reunFMAPrev },
+                ...otrasCanalesNames.map((canal) => ({
+                  nombre: canal,
+                  gasto: 0, gastoPrev: 0,
+                  rows: reuniones.filter((r) => r["Canal"].trim() === canal),
+                  rowsPrev: reunPrev.filter((r) => r["Canal"].trim() === canal),
+                })),
+              ].map(({ nombre, gasto, gastoPrev, rows, rowsPrev }) => {
                 const ag = rows.length, agP = rowsPrev.length;
                 const ci = rows.filter((r) => isClosedStatus(r["Status"])).length;
+                const ciP = rowsPrev.filter((r) => isClosedStatus(r["Status"])).length;
+                const costAg  = cpa(gasto, ag);
+                const costAgP = cpa(gastoPrev, agP);
+                const costCli  = ci > 0 && gasto > 0 ? gasto / ci : null;
+                const costCliP = ciP > 0 && gastoPrev > 0 ? gastoPrev / ciP : null;
+                const isOtro = gasto === 0 && gastoPrev === 0 && nombre !== "FMA";
                 return (
-                  <tr key={canal} className="border-b border-surface-800/50 hover:bg-surface-800/30">
-                    <td className="px-4 py-3 font-medium text-slate-400">{canal}</td>
-                    <td className="px-4 py-3 text-center text-slate-600">—</td>
+                  <tr key={nombre} className="border-b border-surface-800/50 hover:bg-surface-800/30">
+                    <td className="px-4 py-3 font-medium text-slate-300">{nombre}</td>
+                    <td className="px-4 py-3 text-center text-brand-400">{gasto > 0 ? fmtUSD(gasto) : "—"}</td>
                     <td className="px-4 py-3 text-center text-white font-bold">{ag || "—"}</td>
+                    {/* Costo/Agenda con prev chiquito */}
+                    <td className="px-4 py-3 text-center">
+                      {isOtro ? <span className="text-slate-600">—</span> : (
+                        <>
+                          <span className="text-amber-400 font-semibold">{fmtUSD(costAg)}</span>
+                          {costAgP && <p className="text-[10px] text-slate-600 mt-0.5">ant: {fmtUSD(costAgP)}</p>}
+                        </>
+                      )}
+                    </td>
+                    {/* Costo/Cliente con prev chiquito */}
+                    <td className="px-4 py-3 text-center">
+                      {isOtro ? <span className="text-slate-600">—</span> : (
+                        <>
+                          <span className="text-amber-300 font-semibold">{fmtUSD(costCli)}</span>
+                          {costCliP && <p className="text-[10px] text-slate-600 mt-0.5">ant: {fmtUSD(costCliP)}</p>}
+                        </>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-center text-emerald-400 font-bold">{ci || "—"}</td>
                     <td className="px-4 py-3 text-center text-emerald-400">{pct(ci, ag)}</td>
-                    <td className="px-4 py-3 text-center text-slate-600">—</td>
-                    <td className="px-4 py-3 text-center text-slate-500">{agP || "—"}</td>
-                    <td className="px-4 py-3 text-center text-slate-600">—</td>
                   </tr>
                 );
               })}
@@ -504,24 +458,26 @@ export default async function SettingPage({
                 const ag  = reunVSL.length + reunIG.length + reunFMA.length + reunOtros.length;
                 const agP = reunVSLPrev.length + reunIGPrev.length + reunFMAPrev.length;
                 const ci  = reuniones.filter((r) => isClosedStatus(r["Status"])).length;
-                const c = cpa(gastoTotal, ag), cP = cpa(gastoTotalPrev, agP);
-                const diff = c && cP ? ((c - cP) / cP) * 100 : null;
+                const ciP = [...reunVSLPrev, ...reunIGPrev, ...reunFMAPrev].filter((r) => isClosedStatus(r["Status"])).length;
+                const c  = cpa(gastoTotal, ag);
+                const cP = cpa(gastoTotalPrev, agP);
+                const costCli  = ci > 0 && gastoTotal > 0 ? gastoTotal / ci : null;
+                const costCliP = ciP > 0 && gastoTotalPrev > 0 ? gastoTotalPrev / ciP : null;
                 return (
                   <tr className="bg-surface-800/40 border-t border-surface-600/50">
                     <td className="px-4 py-3 font-bold text-white">TOTAL</td>
                     <td className="px-4 py-3 text-center text-brand-400 font-bold">{fmtUSD(gastoTotal)}</td>
                     <td className="px-4 py-3 text-center text-white font-bold">{ag}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-amber-400 font-bold">{fmtUSD(c)}</span>
+                      {cP && <p className="text-[10px] text-slate-600 mt-0.5">ant: {fmtUSD(cP)}</p>}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-amber-300 font-bold">{fmtUSD(costCli)}</span>
+                      {costCliP && <p className="text-[10px] text-slate-600 mt-0.5">ant: {fmtUSD(costCliP)}</p>}
+                    </td>
                     <td className="px-4 py-3 text-center text-emerald-400 font-bold">{ci || "—"}</td>
                     <td className="px-4 py-3 text-center text-emerald-400 font-bold">{pct(ci, ag)}</td>
-                    <td className="px-4 py-3 text-center text-amber-400 font-bold">{fmtUSD(c)}</td>
-                    <td className="px-4 py-3 text-center text-slate-500">{fmtUSD(cP)}</td>
-                    <td className="px-4 py-3 text-center">
-                      {diff !== null && Math.abs(diff) >= 1 ? (
-                        <span className={`text-xs font-semibold ${diff <= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                          {diff <= 0 ? "▼" : "▲"} {Math.abs(diff).toFixed(0)}%
-                        </span>
-                      ) : "—"}
-                    </td>
                   </tr>
                 );
               })()}
@@ -594,7 +550,7 @@ export default async function SettingPage({
                     <td className="px-4 py-3 text-center font-bold text-white">{tAg || "—"}</td>
                     <td className="px-4 py-3 text-center text-brand-400">—</td>
                     <td className="px-4 py-3 text-center font-bold text-emerald-400">{tCi || "—"}</td>
-                    <td className="px-4 py-3 text-center font-bold text-emerald-400">{pct(tCi, tAg)}</td>
+                    <td className="px-4 py-3 text-center font-bold text-emerald-400">{tL > 0 ? pct(tCi, tL) : "—"}</td>
                   </tr>
                 );
               })()}
@@ -660,6 +616,23 @@ export default async function SettingPage({
             </p>
           )}
         </div>
+        {/* Costo/Agenda */}
+        {(() => {
+          const costAg  = vslAgendasReun > 0 && vslInversion > 0 ? vslInversion / vslAgendasReun : null;
+          const costAgP = vslAgendasPrevReun > 0 && vslInversionPrev > 0 ? vslInversionPrev / vslAgendasPrevReun : null;
+          return (
+            <div className="card">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Costo/Agenda</p>
+              <p className="text-2xl font-bold text-amber-400">{fmtUSD(costAg)}</p>
+              {costAgP && (
+                <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+                  ant: {fmtUSD(costAgP)}
+                  <VarBadge curr={costAg ?? 0} prev={costAgP} lowerBetter />
+                </p>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── 4. FMA ── */}
@@ -678,11 +651,12 @@ export default async function SettingPage({
         </div>
         {/* Seguidores */}
         <div className="card">
-          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Seguidores captados</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Nuevos seguidores</p>
           <p className="text-2xl font-bold text-white">{fmaSeguidores > 0 ? fmaSeguidores.toLocaleString() : "—"}</p>
           {fmaCostSeguidor && (
             <p className="text-[11px] text-amber-400 mt-0.5">{fmtUSD(fmaCostSeguidor)} / seguidor</p>
           )}
+          <p className="text-[10px] text-slate-600 mt-0.5">Personas que siguieron la cuenta vía ads</p>
           {fmaSeguidoresPrev > 0 && (
             <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
               ant: {fmaSeguidoresPrev.toLocaleString()}
@@ -692,12 +666,13 @@ export default async function SettingPage({
         </div>
         {/* Leads totales */}
         <div className="card">
-          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Leads del ecosistema</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Leads generados</p>
           <p className="text-2xl font-bold text-white">{fmaEcoLeads > 0 ? fmaEcoLeads : "—"}</p>
           {fmaCostLead && (
             <p className="text-[11px] text-amber-400 mt-0.5">{fmtUSD(fmaCostLead)} / lead</p>
           )}
-          <p className="text-[10px] text-slate-600 mt-0.5">FMA cmt + Outbound + Historias</p>
+          <p className="text-[10px] text-slate-600 mt-0.5">Personas que levantaron la mano como potenciales clientes</p>
+          <p className="text-[10px] text-slate-700 mt-0.5">Cmt FMA ({fmaCmtLeads}) + Outbound ({tienenNegocio}) + Historias ({historiasLeads})</p>
         </div>
         {/* Agendas FMA */}
         <div className="card">
