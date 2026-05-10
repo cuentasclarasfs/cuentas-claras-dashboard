@@ -22,9 +22,9 @@ const NAV_ITEMS = [
   { href: "/dashboard/home",      label: "Dashboard",  icon: LayoutDashboard, section: "home" },
   { href: "/dashboard/finanzas",  label: "Finanzas",   icon: DollarSign,      section: "finanzas" },
   { href: "/dashboard/clientes",  label: "Clientes",   icon: Users,           section: "clientes" },
-  { href: "/dashboard/ventas",    label: "Ventas",     icon: TrendingUp,      section: "ventas" },
-  { href: "/dashboard/setting",        label: "Setting",        icon: Megaphone,     section: "marketing"      },
   { href: "/dashboard/contenido",      label: "Contenido",      icon: FileText,      section: "contenido"      },
+  { href: "/dashboard/setting",        label: "Setting",        icon: Megaphone,     section: "marketing"      },
+  { href: "/dashboard/ventas",    label: "Closing",    icon: TrendingUp,      section: "ventas" },
   { href: "/dashboard/administracion", label: "Admin",          icon: ClipboardList, section: "administracion" },
   { href: "/dashboard/patrimonio",     label: "Patrimonio",     icon: Wallet,        section: "patrimonio"     },
 ];

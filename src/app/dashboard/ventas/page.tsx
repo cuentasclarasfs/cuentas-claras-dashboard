@@ -478,7 +478,7 @@ export default async function VentasPage({
 
       {/* ── ANTIGÜEDAD DEL NEGOCIO ── */}
       {(() => {
-        const ANT_ORDER = ["< 1 año", "1-3 años", "> 3 años"];
+        const ANT_ORDER = ["Menos de 1 año", "Entre 1 y 3 años", "Mas de 3 años"];
         type AntEntry = { agendas: number; noPres: number; nsCanc: number; efectivas: number; cierres: number };
         const mapa = new Map<string, AntEntry>();
         for (const r of reuniones) {

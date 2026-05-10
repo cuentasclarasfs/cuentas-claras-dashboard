@@ -399,7 +399,7 @@ export default async function SettingPage({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-700">
-                {["Canal", "$ Inversión", "Agendas", "Costo/Agenda", "Costo/Cliente", "Cierres", "CR%"].map((h) => (
+                {["Canal", "$ Inversión", "Agendas", "Costo/Agenda", "Cierres", "CR%", "Costo/Cliente"].map((h) => (
                   <th key={h} className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase first:text-left">{h}</th>
                 ))}
               </tr>
@@ -428,7 +428,11 @@ export default async function SettingPage({
                 return (
                   <tr key={nombre} className="border-b border-surface-800/50 hover:bg-surface-800/30">
                     <td className="px-4 py-3 font-medium text-slate-300">{nombre}</td>
-                    <td className="px-4 py-3 text-center text-brand-400">{gasto > 0 ? fmtUSD(gasto) : "—"}</td>
+                    {/* $ Inversión con prev chiquito */}
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-brand-400">{gasto > 0 ? fmtUSD(gasto) : "—"}</span>
+                      {gastoPrev > 0 && <p className="text-[10px] text-slate-600 mt-0.5">ant: {fmtUSD(gastoPrev)}</p>}
+                    </td>
                     <td className="px-4 py-3 text-center text-white font-bold">{ag || "—"}</td>
                     {/* Costo/Agenda con prev chiquito */}
                     <td className="px-4 py-3 text-center">
@@ -439,7 +443,9 @@ export default async function SettingPage({
                         </>
                       )}
                     </td>
-                    {/* Costo/Cliente con prev chiquito */}
+                    <td className="px-4 py-3 text-center text-emerald-400 font-bold">{ci || "—"}</td>
+                    <td className="px-4 py-3 text-center text-emerald-400">{pct(ci, ag)}</td>
+                    {/* Costo/Cliente al final con prev chiquito */}
                     <td className="px-4 py-3 text-center">
                       {isOtro ? <span className="text-slate-600">—</span> : (
                         <>
@@ -448,8 +454,6 @@ export default async function SettingPage({
                         </>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-center text-emerald-400 font-bold">{ci || "—"}</td>
-                    <td className="px-4 py-3 text-center text-emerald-400">{pct(ci, ag)}</td>
                   </tr>
                 );
               })}
@@ -466,18 +470,21 @@ export default async function SettingPage({
                 return (
                   <tr className="bg-surface-800/40 border-t border-surface-600/50">
                     <td className="px-4 py-3 font-bold text-white">TOTAL</td>
-                    <td className="px-4 py-3 text-center text-brand-400 font-bold">{fmtUSD(gastoTotal)}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-brand-400 font-bold">{fmtUSD(gastoTotal)}</span>
+                      {gastoTotalPrev > 0 && <p className="text-[10px] text-slate-600 mt-0.5">ant: {fmtUSD(gastoTotalPrev)}</p>}
+                    </td>
                     <td className="px-4 py-3 text-center text-white font-bold">{ag}</td>
                     <td className="px-4 py-3 text-center">
                       <span className="text-amber-400 font-bold">{fmtUSD(c)}</span>
                       {cP && <p className="text-[10px] text-slate-600 mt-0.5">ant: {fmtUSD(cP)}</p>}
                     </td>
+                    <td className="px-4 py-3 text-center text-emerald-400 font-bold">{ci || "—"}</td>
+                    <td className="px-4 py-3 text-center text-emerald-400 font-bold">{pct(ci, ag)}</td>
                     <td className="px-4 py-3 text-center">
                       <span className="text-amber-300 font-bold">{fmtUSD(costCli)}</span>
                       {costCliP && <p className="text-[10px] text-slate-600 mt-0.5">ant: {fmtUSD(costCliP)}</p>}
                     </td>
-                    <td className="px-4 py-3 text-center text-emerald-400 font-bold">{ci || "—"}</td>
-                    <td className="px-4 py-3 text-center text-emerald-400 font-bold">{pct(ci, ag)}</td>
                   </tr>
                 );
               })()}
@@ -561,56 +568,55 @@ export default async function SettingPage({
 
       {/* ── 3. VSL ── */}
       <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">VSL — Video Sales Letter</h2>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-8">
         {/* Inversión */}
-        <div className="card">
+        <div className="card p-3">
           <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Inversión</p>
-          <p className="text-2xl font-bold text-brand-400">{fmtUSD(vslInversion)}</p>
+          <p className="text-xl font-bold text-brand-400">{fmtUSD(vslInversion)}</p>
           {vslInversionPrev > 0 && (
-            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+            <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
               ant: {fmtUSD(vslInversionPrev)}
               <VarBadge curr={vslInversion} prev={vslInversionPrev} lowerBetter />
             </p>
           )}
         </div>
         {/* Visitas */}
-        <div className="card">
-          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Visitas a la página</p>
-          <p className="text-2xl font-bold text-white">{vslVisitas > 0 ? vslVisitas.toLocaleString() : "—"}</p>
+        <div className="card p-3">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Visitas</p>
+          <p className="text-xl font-bold text-white">{vslVisitas > 0 ? vslVisitas.toLocaleString() : "—"}</p>
           {vslCostVisita && (
-            <p className="text-[11px] text-amber-400 mt-0.5">{fmtUSD(vslCostVisita)} / visita</p>
+            <p className="text-[10px] text-amber-400 mt-0.5">{fmtUSD(vslCostVisita)} / visita</p>
           )}
           {vslVisitasPrev > 0 && (
-            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+            <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
               ant: {vslVisitasPrev.toLocaleString()}
-              {vslCostVisitaPrev && <span className="text-slate-600">({fmtUSD(vslCostVisitaPrev)})</span>}
               <VarBadge curr={vslVisitas} prev={vslVisitasPrev} />
             </p>
           )}
         </div>
         {/* Agendas */}
-        <div className="card">
+        <div className="card p-3">
           <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Agendas</p>
-          <p className="text-2xl font-bold text-white">{vslAgendasReun > 0 ? vslAgendasReun : "—"}</p>
+          <p className="text-xl font-bold text-white">{vslAgendasReun > 0 ? vslAgendasReun : "—"}</p>
           {vslCierres > 0 && (
-            <p className="text-[11px] text-emerald-400 mt-0.5">{vslCierres} cierres · {pct(vslCierres, vslAgendasReun)} CR</p>
+            <p className="text-[10px] text-emerald-400 mt-0.5">{vslCierres} ci. · {pct(vslCierres, vslAgendasReun)} CR</p>
           )}
           {vslAgendasPrevReun > 0 && (
-            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+            <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
               ant: {vslAgendasPrevReun}
               <VarBadge curr={vslAgendasReun} prev={vslAgendasPrevReun} />
             </p>
           )}
         </div>
         {/* Conversión */}
-        <div className="card">
+        <div className="card p-3">
           <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">% Conversión</p>
-          <p className="text-2xl font-bold text-emerald-400">
+          <p className="text-xl font-bold text-emerald-400">
             {vslConversion !== null ? `${vslConversion.toFixed(1)}%` : "—"}
           </p>
-          <p className="text-[11px] text-slate-600 mt-0.5">agendas / visitas</p>
+          <p className="text-[10px] text-slate-600 mt-0.5">ag / visitas</p>
           {vslConversionPrev !== null && (
-            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+            <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
               ant: {vslConversionPrev.toFixed(1)}%
               <VarBadge curr={vslConversion ?? 0} prev={vslConversionPrev} />
             </p>
@@ -621,11 +627,11 @@ export default async function SettingPage({
           const costAg  = vslAgendasReun > 0 && vslInversion > 0 ? vslInversion / vslAgendasReun : null;
           const costAgP = vslAgendasPrevReun > 0 && vslInversionPrev > 0 ? vslInversionPrev / vslAgendasPrevReun : null;
           return (
-            <div className="card">
+            <div className="card p-3">
               <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Costo/Agenda</p>
-              <p className="text-2xl font-bold text-amber-400">{fmtUSD(costAg)}</p>
+              <p className="text-xl font-bold text-amber-400">{fmtUSD(costAg)}</p>
               {costAgP && (
-                <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+                <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
                   ant: {fmtUSD(costAgP)}
                   <VarBadge curr={costAg ?? 0} prev={costAgP} lowerBetter />
                 </p>
@@ -654,7 +660,7 @@ export default async function SettingPage({
           <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Nuevos seguidores</p>
           <p className="text-2xl font-bold text-white">{fmaSeguidores > 0 ? fmaSeguidores.toLocaleString() : "—"}</p>
           {fmaCostSeguidor && (
-            <p className="text-[11px] text-amber-400 mt-0.5">{fmtUSD(fmaCostSeguidor)} / seguidor</p>
+            <p className="text-[11px] text-amber-400 mt-0.5">${fmaCostSeguidor.toFixed(2)} / seguidor</p>
           )}
           <p className="text-[10px] text-slate-600 mt-0.5">Personas que siguieron la cuenta vía ads</p>
           {fmaSeguidoresPrev > 0 && (
@@ -669,7 +675,7 @@ export default async function SettingPage({
           <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Leads generados</p>
           <p className="text-2xl font-bold text-white">{fmaEcoLeads > 0 ? fmaEcoLeads : "—"}</p>
           {fmaCostLead && (
-            <p className="text-[11px] text-amber-400 mt-0.5">{fmtUSD(fmaCostLead)} / lead</p>
+            <p className="text-[11px] text-amber-400 mt-0.5">${fmaCostLead.toFixed(2)} / lead</p>
           )}
           <p className="text-[10px] text-slate-600 mt-0.5">Personas que levantaron la mano como potenciales clientes</p>
           <p className="text-[10px] text-slate-700 mt-0.5">Cmt FMA ({fmaCmtLeads}) + Outbound ({tienenNegocio}) + Historias ({historiasLeads})</p>
