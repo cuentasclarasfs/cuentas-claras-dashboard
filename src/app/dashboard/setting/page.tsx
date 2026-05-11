@@ -192,24 +192,36 @@ export default async function SettingPage({
 
   // ── ANÁLISIS DE LEADS ─────────────────────────────────────────────────────
 
-  const comentariosLeads = contenidoPosteosRaw
+  // Comentarios: organico (posteos de Facu) + ADS (col Comentarios de FMA sheet)
+  const comentariosOrgLeads = contenidoPosteosRaw
     .filter((r) => inR(r["Fecha"] ?? ""))
     .reduce((s, r) => s + (parseInt(r["Comentarios"]) || 0), 0);
+  const comentariosADSLeads = fmaRawData
+    .filter((r) => inR(r["Fecha"] ?? ""))
+    .reduce((s, r) => s + (parseInt(r["Comentarios"]) || 0), 0);
+  const comentariosLeads = comentariosOrgLeads + comentariosADSLeads;
+
   const historiasLeads = contenidoHistoriasRaw
     .filter((r) => inR(r["Fecha"] ?? ""))
     .reduce((s, r) => s + (parseInt(r["Leads"]) || 0), 0);
 
-  // ADS IG leads = sum of Tipo A+B+C+D
+  // ADS IG leads = solo Tipo A (calificados)
+  const tiposALeads = tiposLeads.reduce((s, r) => s + (parseInt(r["Tipo A"]) || 0), 0);
+
+  // tiposTotal (A+B+C+D) se sigue usando en la sección ADS MJE IG
   const tiposTotal = tiposLeads.reduce(
     (s, r) => s + (parseInt(r["Tipo A"]) || 0) + (parseInt(r["Tipo B"]) || 0) +
               (parseInt(r["Tipo C"]) || 0) + (parseInt(r["Tipo D"]) || 0), 0
   );
 
   const leadsAnalisis = [
-    { nombre: "ADS IG",      leads: tiposTotal,      canal: "ADS Mje IG"   },
-    { nombre: "Outbound",    leads: tienenNegocio,   canal: "Outbound"     },
-    { nombre: "Comentarios", leads: comentariosLeads, canal: "Comentarios" },
-    { nombre: "Historias",   leads: historiasLeads,  canal: "Historias"    },
+    { nombre: "ADS IG",      leads: tiposALeads,      canal: "ADS Mje IG",  sub: null as string | null },
+    { nombre: "Outbound",    leads: tienenNegocio,    canal: "Outbound",    sub: null as string | null },
+    { nombre: "Comentarios", leads: comentariosLeads, canal: "Comentarios",
+      sub: (comentariosOrgLeads > 0 || comentariosADSLeads > 0)
+        ? `org: ${comentariosOrgLeads} · ads: ${comentariosADSLeads}`
+        : null as string | null },
+    { nombre: "Historias",   leads: historiasLeads,   canal: "Historias",   sub: null as string | null },
   ].map((e) => {
     const rows    = byCanal(e.canal);
     const agendas = rows.length;
@@ -513,7 +525,10 @@ export default async function SettingPage({
               {leadsAnalisis.map((e) => (
                 <tr key={e.nombre} className="border-b border-surface-800/50 hover:bg-surface-800/30">
                   <td className="px-4 py-3 font-medium text-slate-300">{e.nombre}</td>
-                  <td className="px-4 py-3 text-center text-slate-400">{e.leads > 0 ? e.leads : "—"}</td>
+                  <td className="px-4 py-3 text-center text-slate-400">
+                    {e.leads > 0 ? e.leads : "—"}
+                    {e.sub && <p className="text-[10px] text-slate-600 mt-0.5">{e.sub}</p>}
+                  </td>
                   <td className="px-4 py-3 text-center font-bold text-white">{e.agendas || "—"}</td>
                   <td className="px-4 py-3 text-center text-brand-400">
                     {e.leads > 0 ? pct(e.agendas, e.leads) : "—"}
