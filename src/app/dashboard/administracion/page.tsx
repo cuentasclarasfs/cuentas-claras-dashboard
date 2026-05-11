@@ -28,13 +28,14 @@ function pct(n: number, total: number): string {
 export default async function AdministracionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ consultor?: string; closer?: string; sinMonto?: string; responsable?: string }>;
+  searchParams: Promise<{ consultor?: string; closer?: string; sinMonto?: string; responsable?: string; menos30?: string }>;
 }) {
   const sp = await searchParams;
   const selectedConsultor   = sp.consultor   ?? "";
   const selectedCloser      = sp.closer      ?? "";
   const selectedResponsable = sp.responsable ?? "";
   const ocultarSinMonto     = sp.sinMonto === "ocultar";
+  const ocultarMenos30      = sp.menos30  === "ocultar";
 
   const user = await currentUser();
   const role = ((user?.publicMetadata?.role as Role) ?? "ops") as Role;
@@ -98,6 +99,7 @@ export default async function AdministracionPage({
     if (selectedCloser      && d["Closer"]      !== selectedCloser)      return false;
     if (selectedResponsable && d["Responsable"] !== selectedResponsable) return false;
     if (ocultarSinMonto     && parseNumES(d["Monto"]) === 0)            return false;
+    if (ocultarMenos30      && Math.abs(parseFloat(d["Dias"]) || 0) < 30) return false;
     return true;
   });
   const filteredTotal    = filteredDeudores.reduce((s, r) => s + parseNumES(r["Monto"]), 0);
@@ -107,6 +109,12 @@ export default async function AdministracionPage({
     if (selectedCloser      && d["Closer"]      !== selectedCloser)      return false;
     if (selectedResponsable && d["Responsable"] !== selectedResponsable) return false;
     return parseNumES(d["Monto"]) === 0;
+  }).length;
+  const menos30Count = deudores.filter((d) => {
+    if (selectedConsultor   && d["Consultor"]   !== selectedConsultor)   return false;
+    if (selectedCloser      && d["Closer"]      !== selectedCloser)      return false;
+    if (selectedResponsable && d["Responsable"] !== selectedResponsable) return false;
+    return Math.abs(parseFloat(d["Dias"]) || 0) < 30;
   }).length;
 
   // ── COMISIONES ────────────────────────────────────────────────────────────
@@ -241,6 +249,7 @@ export default async function AdministracionPage({
               if (selectedCloser)      params.set("closer",      selectedCloser);
               if (selectedResponsable) params.set("responsable", selectedResponsable);
               if (!ocultarSinMonto)    params.set("sinMonto",    "ocultar");
+              if (ocultarMenos30)      params.set("menos30",     "ocultar");
               const href = `/dashboard/administracion?${params.toString()}`;
               return (
                 <Link
@@ -257,6 +266,33 @@ export default async function AdministracionPage({
                     {ocultarSinMonto && <span className="text-white text-[8px] leading-none">✓</span>}
                   </span>
                   Ocultar sin monto ({sinMontoCount})
+                </Link>
+              );
+            })()}
+            {/* Toggle menos 30 días */}
+            {menos30Count > 0 && (() => {
+              const params = new URLSearchParams();
+              if (selectedConsultor)   params.set("consultor",   selectedConsultor);
+              if (selectedCloser)      params.set("closer",      selectedCloser);
+              if (selectedResponsable) params.set("responsable", selectedResponsable);
+              if (ocultarSinMonto)     params.set("sinMonto",    "ocultar");
+              if (!ocultarMenos30)     params.set("menos30",     "ocultar");
+              const href = `/dashboard/administracion?${params.toString()}`;
+              return (
+                <Link
+                  href={href}
+                  className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${
+                    ocultarMenos30
+                      ? "bg-brand-600/20 border-brand-600/50 text-brand-400"
+                      : "bg-surface-700 border-surface-600 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <span className={`w-3 h-3 rounded-sm border flex items-center justify-center flex-shrink-0 ${
+                    ocultarMenos30 ? "bg-brand-600 border-brand-600" : "border-slate-500"
+                  }`}>
+                    {ocultarMenos30 && <span className="text-white text-[8px] leading-none">✓</span>}
+                  </span>
+                  Ocultar &lt;30 días ({menos30Count})
                 </Link>
               );
             })()}
