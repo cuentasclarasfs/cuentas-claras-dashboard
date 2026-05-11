@@ -215,15 +215,17 @@ export default async function SettingPage({
   );
 
   const leadsAnalisis = [
-    { nombre: "ADS IG",      leads: tiposALeads,      canal: "ADS Mje IG",  sub: null as string | null },
-    { nombre: "Outbound",    leads: tienenNegocio,    canal: "Outbound",    sub: null as string | null },
-    { nombre: "Comentarios", leads: comentariosLeads, canal: "Comentarios",
+    { nombre: "ADS IG",      leads: tiposALeads,      canal: "ADS Mje IG",  tipoA: true,  sub: null as string | null },
+    { nombre: "Outbound",    leads: tienenNegocio,    canal: "Outbound",    tipoA: false, sub: null as string | null },
+    { nombre: "Comentarios", leads: comentariosLeads, canal: "Comentarios", tipoA: false,
       sub: (comentariosOrgLeads > 0 || comentariosADSLeads > 0)
         ? `org: ${comentariosOrgLeads} · ads: ${comentariosADSLeads}`
         : null as string | null },
-    { nombre: "Historias",   leads: historiasLeads,   canal: "Historias",   sub: null as string | null },
+    { nombre: "Historias",   leads: historiasLeads,   canal: "Historias",   tipoA: false, sub: null as string | null },
   ].map((e) => {
-    const rows    = byCanal(e.canal);
+    let rows = byCanal(e.canal);
+    // Para ADS IG solo contamos agendas Tipo A
+    if (e.tipoA) rows = rows.filter((r) => matchTipo(r, "A"));
     const agendas = rows.length;
     const cierres = rows.filter((r) => isClosedStatus(r["Status"])).length;
     return { ...e, agendas, cierres };
@@ -1010,10 +1012,10 @@ export default async function SettingPage({
                       <span className="ml-1 text-slate-600">de {totalLeads} leads</span>
                     )}
                   </td>
-                  <td className="px-4 py-2.5 text-center font-bold text-white">{agendado || "—"}</td>
-                  <td className="px-4 py-2.5 text-center font-bold text-brand-400">{pct(agendado, tiposTotal)}</td>
+                  <td className="px-4 py-2.5 text-center font-bold text-white">{reunADS.length || "—"}</td>
+                  <td className="px-4 py-2.5 text-center font-bold text-brand-400">{pct(reunADS.length, tiposTotal)}</td>
                   <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{cierresADS || "—"}</td>
-                  <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{pct(cierresADS, agendado)}</td>
+                  <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{pct(cierresADS, reunADS.length)}</td>
                 </tr>
               </tbody>
             </table>
