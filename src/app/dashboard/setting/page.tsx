@@ -399,17 +399,16 @@ export default async function SettingPage({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-700">
-                {["Canal", "$ Inversión", "Agendas", "Costo/Agenda", "Cierres", "CR%", "Costo/Cliente"].map((h) => (
+                {["Canal", "$ Inversión", "Agendas", "Costo/Agenda"].map((h) => (
                   <th key={h} className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase first:text-left">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {/* Helper: renders a cost cell with prev period small below */}
               {[
-                { nombre: "VSL",   gasto: gastoVSL,  gastoPrev: gastoVSLPrev, rows: reunVSL,  rowsPrev: reunVSLPrev },
-                { nombre: "MSG IG",gasto: gastoIG,   gastoPrev: gastoIGPrev,  rows: reunIG,   rowsPrev: reunIGPrev  },
-                { nombre: "FMA",   gasto: gastoFMA,  gastoPrev: gastoFMAPrev, rows: reunFMA,  rowsPrev: reunFMAPrev },
+                { nombre: "VSL",    gasto: gastoVSL,  gastoPrev: gastoVSLPrev, rows: reunVSL,  rowsPrev: reunVSLPrev },
+                { nombre: "MSG IG", gasto: gastoIG,   gastoPrev: gastoIGPrev,  rows: reunIG,   rowsPrev: reunIGPrev  },
+                { nombre: "FMA",    gasto: gastoFMA,  gastoPrev: gastoFMAPrev, rows: reunFMA,  rowsPrev: reunFMAPrev },
                 ...otrasCanalesNames.map((canal) => ({
                   nombre: canal,
                   gasto: 0, gastoPrev: 0,
@@ -417,40 +416,27 @@ export default async function SettingPage({
                   rowsPrev: reunPrev.filter((r) => r["Canal"].trim() === canal),
                 })),
               ].map(({ nombre, gasto, gastoPrev, rows, rowsPrev }) => {
-                const ag = rows.length, agP = rowsPrev.length;
-                const ci = rows.filter((r) => isClosedStatus(r["Status"])).length;
-                const ciP = rowsPrev.filter((r) => isClosedStatus(r["Status"])).length;
+                const ag   = rows.length;
+                const agP  = rowsPrev.length;
                 const costAg  = cpa(gasto, ag);
                 const costAgP = cpa(gastoPrev, agP);
-                const costCli  = ci > 0 && gasto > 0 ? gasto / ci : null;
-                const costCliP = ciP > 0 && gastoPrev > 0 ? gastoPrev / ciP : null;
-                const isOtro = gasto === 0 && gastoPrev === 0 && nombre !== "FMA";
+                const isOtro  = gasto === 0 && gastoPrev === 0 && nombre !== "FMA";
                 return (
                   <tr key={nombre} className="border-b border-surface-800/50 hover:bg-surface-800/30">
                     <td className="px-4 py-3 font-medium text-slate-300">{nombre}</td>
-                    {/* $ Inversión con prev chiquito */}
                     <td className="px-4 py-3 text-center">
                       <span className="text-brand-400">{gasto > 0 ? fmtUSD(gasto) : "—"}</span>
                       {gastoPrev > 0 && <p className="text-[10px] text-slate-600 mt-0.5">ant: {fmtUSD(gastoPrev)}</p>}
                     </td>
-                    <td className="px-4 py-3 text-center text-white font-bold">{ag || "—"}</td>
-                    {/* Costo/Agenda con prev chiquito */}
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-white font-bold">{ag || "—"}</span>
+                      {agP > 0 && <p className="text-[10px] text-slate-600 mt-0.5">ant: {agP}</p>}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       {isOtro ? <span className="text-slate-600">—</span> : (
                         <>
                           <span className="text-amber-400 font-semibold">{fmtUSD(costAg)}</span>
                           {costAgP && <p className="text-[10px] text-slate-600 mt-0.5">ant: {fmtUSD(costAgP)}</p>}
-                        </>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center text-emerald-400 font-bold">{ci || "—"}</td>
-                    <td className="px-4 py-3 text-center text-emerald-400">{pct(ci, ag)}</td>
-                    {/* Costo/Cliente al final con prev chiquito */}
-                    <td className="px-4 py-3 text-center">
-                      {isOtro ? <span className="text-slate-600">—</span> : (
-                        <>
-                          <span className="text-amber-300 font-semibold">{fmtUSD(costCli)}</span>
-                          {costCliP && <p className="text-[10px] text-slate-600 mt-0.5">ant: {fmtUSD(costCliP)}</p>}
                         </>
                       )}
                     </td>
@@ -461,12 +447,8 @@ export default async function SettingPage({
               {(() => {
                 const ag  = reunVSL.length + reunIG.length + reunFMA.length + reunOtros.length;
                 const agP = reunVSLPrev.length + reunIGPrev.length + reunFMAPrev.length;
-                const ci  = reuniones.filter((r) => isClosedStatus(r["Status"])).length;
-                const ciP = [...reunVSLPrev, ...reunIGPrev, ...reunFMAPrev].filter((r) => isClosedStatus(r["Status"])).length;
-                const c  = cpa(gastoTotal, ag);
-                const cP = cpa(gastoTotalPrev, agP);
-                const costCli  = ci > 0 && gastoTotal > 0 ? gastoTotal / ci : null;
-                const costCliP = ciP > 0 && gastoTotalPrev > 0 ? gastoTotalPrev / ciP : null;
+                const c   = cpa(gastoTotal, ag);
+                const cP  = cpa(gastoTotalPrev, agP);
                 return (
                   <tr className="bg-surface-800/40 border-t border-surface-600/50">
                     <td className="px-4 py-3 font-bold text-white">TOTAL</td>
@@ -474,16 +456,13 @@ export default async function SettingPage({
                       <span className="text-brand-400 font-bold">{fmtUSD(gastoTotal)}</span>
                       {gastoTotalPrev > 0 && <p className="text-[10px] text-slate-600 mt-0.5">ant: {fmtUSD(gastoTotalPrev)}</p>}
                     </td>
-                    <td className="px-4 py-3 text-center text-white font-bold">{ag}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-white font-bold">{ag}</span>
+                      {agP > 0 && <p className="text-[10px] text-slate-600 mt-0.5">ant: {agP}</p>}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <span className="text-amber-400 font-bold">{fmtUSD(c)}</span>
                       {cP && <p className="text-[10px] text-slate-600 mt-0.5">ant: {fmtUSD(cP)}</p>}
-                    </td>
-                    <td className="px-4 py-3 text-center text-emerald-400 font-bold">{ci || "—"}</td>
-                    <td className="px-4 py-3 text-center text-emerald-400 font-bold">{pct(ci, ag)}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="text-amber-300 font-bold">{fmtUSD(costCli)}</span>
-                      {costCliP && <p className="text-[10px] text-slate-600 mt-0.5">ant: {fmtUSD(costCliP)}</p>}
                     </td>
                   </tr>
                 );
