@@ -1,5 +1,5 @@
 import {
-  getSettingMsgIG, getSettingTiposLeads, getSettingAnalisisFMA,
+  getSettingMsgIG, getSettingMsgIGA, getSettingTiposLeads, getSettingAnalisisFMA,
   getVentasReuniones, isClosedStatus, parseUSD,
   getMarketingVSL, getMarketingFMA, getContenidoPosteos, getContenidoHistorias,
 } from "@/lib/sheets";
@@ -111,8 +111,9 @@ export default async function SettingPage({
   const range = sp.from && sp.to ? { from: sp.from, to: sp.to } : defaultRange();
   const prev  = prevRange(range.from, range.to);
 
-  const [msgIGRaw, tiposLeadsRaw, analisisFMARaw, reunionesRaw, vslRaw, fmaRawData] = await Promise.all([
+  const [msgIGRaw, msgIGARaw, tiposLeadsRaw, analisisFMARaw, reunionesRaw, vslRaw, fmaRawData] = await Promise.all([
     getSettingMsgIG(),
+    getSettingMsgIGA(),
     getSettingTiposLeads(),
     getSettingAnalisisFMA(),
     getVentasReuniones(),
@@ -135,6 +136,7 @@ export default async function SettingPage({
   const inRPrev = (dateStr: string) => inDateRange(dateStr, prev.from, prev.to);
 
   const msgIG        = msgIGRaw.filter((r) => inR(r["Fecha"]));
+  const msgIGA       = msgIGARaw.filter((r) => inR(r["Fecha"]));
   const tiposLeads   = tiposLeadsRaw.filter((r) => inR(r["Fecha"]));
   const analisisFMA  = analisisFMARaw.filter((r) => inR(r["Fecha"]));
   const analisisPrev = analisisFMARaw.filter((r) => inRPrev(r["Fecha"]));
@@ -333,15 +335,22 @@ export default async function SettingPage({
     return [...mapa.entries()].map(([ad, v]) => ({ ad, ...v })).sort((a, b) => b.agendas - a.agendas);
   })();
 
-  // Funnel
+  // Funnel Tipo A — datos de MGS IG A (cada columna = personas que quedaron en esa etapa)
+  const igaResp     = sumInt(msgIGA, "Respuesta");
+  const igaPitch    = sumInt(msgIGA, "Pitch");
+  const igaPermiso  = sumInt(msgIGA, "Permiso");
+  const igaAgEnv    = sumInt(msgIGA, "Agenda enviada");
+  const igaAgendado = sumInt(msgIGA, "Agendado");
+  const cierresADSTipoA = reunADS.filter((r) => matchTipo(r, "A") && isClosedStatus(r["Status"])).length;
+
   const funnelSteps = [
-    { label: "Leads totales", value: totalLeads },
-    { label: "Calificados",   value: tiposTotal },
-    { label: "Pitch",         value: pitch + permiso + agendaEnviada + agendado },
-    { label: "Permiso",       value: permiso + agendaEnviada + agendado },
-    { label: "Ag. enviada",   value: agendaEnviada + agendado },
-    { label: "Agendados",     value: agendado },
-    { label: "Cerrados",      value: cierresADS },
+    { label: "Leads Tipo A",  value: tiposALeads },
+    { label: "Respondieron",  value: igaResp + igaPitch + igaPermiso + igaAgEnv + igaAgendado },
+    { label: "Pitch",         value: igaPitch + igaPermiso + igaAgEnv + igaAgendado },
+    { label: "Permiso",       value: igaPermiso + igaAgEnv + igaAgendado },
+    { label: "Ag. enviada",   value: igaAgEnv + igaAgendado },
+    { label: "Agendados",     value: igaAgendado },
+    { label: "Cerrados",      value: cierresADSTipoA },
   ];
 
   // ── SECTION OUTBOUND ─────────────────────────────────────────────────────

@@ -414,6 +414,21 @@ export async function getSettingMsgIG(): Promise<Record<string, string>[]> {
   }));
 }
 
+// MGS IG A — funnel exclusivo Tipo A
+// A=Fecha, B=$, C=$leadA, D=LeadsTotales, E=LeadEntrante, F=RESP, G=PITC, H=PermisoAG, I=AgendaE, J=Agendado
+export async function getSettingMsgIGA(): Promise<Record<string, string>[]> {
+  const rows = await getSheet(process.env.SHEET_ID_SETTING!, "MGS IG A!A:J");
+  if (rows.length < 2) return [];
+  return rows.slice(1).filter((r) => r[0]?.trim()).map((row) => ({
+    "Fecha":          row[0] ?? "",
+    "Respuesta":      row[5] ?? "",  // F — RESP
+    "Pitch":          row[6] ?? "",  // G — PITC
+    "Permiso":        row[7] ?? "",  // H — PERMISO PARA AG
+    "Agenda enviada": row[8] ?? "",  // I — AGENDA E
+    "Agendado":       row[9] ?? "",  // J — AGENDADO
+  }));
+}
+
 // Tipos de Leads (MSG IG breakdown) — col A=Fecha, B=TipoA, C=TipoB, D=TipoC, E=TipoD
 export async function getSettingTiposLeads(): Promise<Record<string, string>[]> {
   const rows = await getSheet(process.env.SHEET_ID_SETTING!, "Tipos de Leads!A:E");
