@@ -713,6 +713,26 @@ export default async function SettingPage({
             </p>
           )}
         </div>
+        {/* % Cierre / Seguidor */}
+        {(() => {
+          const ratio     = fmaSeguidores > 0 && fmaCierresFMA > 0 ? fmaCierresFMA / fmaSeguidores * 100 : null;
+          const ratioPrev = fmaSeguidoresPrev > 0 && fmaCierresFMAPrev > 0 ? fmaCierresFMAPrev / fmaSeguidoresPrev * 100 : null;
+          return (
+            <div className="card">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">% Cierre / Seguidor</p>
+              <p className="text-2xl font-bold text-emerald-400">
+                {ratio !== null ? `${ratio.toFixed(3)}%` : "—"}
+              </p>
+              <p className="text-[10px] text-slate-600 mt-0.5">Cierres ÷ nuevos seguidores</p>
+              {ratioPrev !== null && (
+                <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+                  ant: {ratioPrev.toFixed(3)}%
+                  <VarBadge curr={ratio ?? 0} prev={ratioPrev} />
+                </p>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── 5. HISTORIAS ── */}
