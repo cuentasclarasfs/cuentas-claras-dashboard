@@ -701,48 +701,68 @@ export function formatUSD(n: number): string {
 }
 
 // ── OPS METRICS (permanencia / retención) ─────────────────────────────────────
-// Reads "Ops" tab from Status Clientes workbook.
-// Global: AE3 = meses promedio, AF3 = meses extra si renuevan (merged cell range)
-// Per-advisor: scan col B for advisor headers (detected by month name in col Y),
-//              then "Clientes 1er programa" row → AE=meses, AF=meses renovacion
+// Reads "Ops" tab from Status Clientes workbook using UNFORMATTED_VALUE so
+// decimal values aren't truncated to integers by cell formatting.
+// Global:     AE3 = meses promedio, AF3 = meses extra si renuevan
+// Per-advisor: find advisor name in col B → next "Clientes 1er programa" row → AE/AF
 // Range B:AF → B=idx0, Y=idx23, AE=idx29, AF=idx30
 export async function getOpsMetrics(): Promise<{
   mesesPromedio:   number | null;
   mesesRenovacion: number | null;
   porAsesor: { nombre: string; meses: number | null; mesesRenovacion: number | null }[];
 }> {
-  const rows = await getSheet(process.env.SHEET_ID_STATUS_CLIENTES!, "Ops!B1:AF3000");
+  const auth   = getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+  const res    = await sheets.spreadsheets.values.get({
+    spreadsheetId:     process.env.SHEET_ID_STATUS_CLIENTES!,
+    range:             "Ops!B1:AF3000",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    valueRenderOption: "UNFORMATTED_VALUE" as any,
+  });
+  const rows = (res.data.values ?? []) as (string | number | boolean)[][];
   if (!rows.length) return { mesesPromedio: null, mesesRenovacion: null, porAsesor: [] };
 
-  // Global metrics: row 3 = index 2 (AE3 is merged cell, value at idx 29 in B:AF range)
-  const globalRow       = rows[2] ?? [];
-  const mesesPromedio   = parseFloat(globalRow[29] ?? "") || null;
-  const mesesRenovacion = parseFloat(globalRow[30] ?? "") || null;
+  const toNum = (v: string | number | boolean | undefined): number | null => {
+    const n = Number(v ?? "");
+    return isFinite(n) && n !== 0 ? n : null;
+  };
 
-  // Advisor header rows: col B = advisor name, col Y (idx 23) = month name like "julio26"
+  // Global metrics: AE3 = index [2][29], AF3 = index [2][30]
+  const globalRow       = rows[2] ?? [];
+  const mesesPromedio   = toNum(globalRow[29]);
+  const mesesRenovacion = toNum(globalRow[30]);
+
+  // Per-advisor logic:
+  // 1. When col B = advisor name AND col Y (idx 23) contains a month-like string → start block
+  // 2. First "Clientes 1er programa" row after that → read AE/AF
   const MONTHS_ES = ["enero","febrero","marzo","abril","mayo","junio",
                      "julio","agosto","septiembre","octubre","noviembre","diciembre"];
-  const isMonthHeader = (v: string) =>
-    MONTHS_ES.some((m) => v.toLowerCase().trim().startsWith(m));
+  const isMonthHeader = (v: string | number | boolean) =>
+    typeof v === "string" && MONTHS_ES.some((m) => v.toLowerCase().trim().startsWith(m));
+
+  const SKIP = new Set(["Clientes 1er programa","Clientes Renovados","Devengaciones por mes",
+                        "Downsell","Clientes Nuevos","Clientes Recurrentes"]);
 
   const porAsesor: { nombre: string; meses: number | null; mesesRenovacion: number | null }[] = [];
   let currentAdvisor: string | null = null;
 
-  for (const row of rows.slice(6)) {  // row 7 onward (index 6)
-    const nameCell = (row[0] ?? "").trim();
+  for (const row of rows.slice(6)) {  // row 7 onward (advisor blocks start here)
+    const nameCell = String(row[0] ?? "").trim();
     if (!nameCell) continue;
 
-    if (isMonthHeader((row[23] ?? "").trim())) {
+    // Advisor header: name in B + month name in Y (col index 23)
+    if (!SKIP.has(nameCell) && isMonthHeader(row[23] ?? "")) {
       currentAdvisor = nameCell;
       continue;
     }
 
+    // Summary row: capture metrics for the current advisor
     if (nameCell === "Clientes 1er programa" && currentAdvisor) {
       if (!porAsesor.find((a) => a.nombre === currentAdvisor)) {
         porAsesor.push({
-          nombre:           currentAdvisor,
-          meses:            parseFloat(row[29] ?? "") || null,
-          mesesRenovacion:  parseFloat(row[30] ?? "") || null,
+          nombre:          currentAdvisor,
+          meses:           toNum(row[29]),
+          mesesRenovacion: toNum(row[30]),
         });
       }
     }
