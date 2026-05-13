@@ -700,6 +700,57 @@ export function formatUSD(n: number): string {
   return `USD ${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
+// ── OPS METRICS (permanencia / retención) ─────────────────────────────────────
+// Reads "Ops" tab from Status Clientes workbook.
+// Global: AE3 = meses promedio, AF3 = meses extra si renuevan (merged cell range)
+// Per-advisor: scan col B for advisor headers (detected by month name in col Y),
+//              then "Clientes 1er programa" row → AE=meses, AF=meses renovacion
+// Range B:AF → B=idx0, Y=idx23, AE=idx29, AF=idx30
+export async function getOpsMetrics(): Promise<{
+  mesesPromedio:   number | null;
+  mesesRenovacion: number | null;
+  porAsesor: { nombre: string; meses: number | null; mesesRenovacion: number | null }[];
+}> {
+  const rows = await getSheet(process.env.SHEET_ID_STATUS_CLIENTES!, "Ops!B1:AF3000");
+  if (!rows.length) return { mesesPromedio: null, mesesRenovacion: null, porAsesor: [] };
+
+  // Global metrics: row 3 = index 2 (AE3 is merged cell, value at idx 29 in B:AF range)
+  const globalRow       = rows[2] ?? [];
+  const mesesPromedio   = parseFloat(globalRow[29] ?? "") || null;
+  const mesesRenovacion = parseFloat(globalRow[30] ?? "") || null;
+
+  // Advisor header rows: col B = advisor name, col Y (idx 23) = month name like "julio26"
+  const MONTHS_ES = ["enero","febrero","marzo","abril","mayo","junio",
+                     "julio","agosto","septiembre","octubre","noviembre","diciembre"];
+  const isMonthHeader = (v: string) =>
+    MONTHS_ES.some((m) => v.toLowerCase().trim().startsWith(m));
+
+  const porAsesor: { nombre: string; meses: number | null; mesesRenovacion: number | null }[] = [];
+  let currentAdvisor: string | null = null;
+
+  for (const row of rows.slice(6)) {  // row 7 onward (index 6)
+    const nameCell = (row[0] ?? "").trim();
+    if (!nameCell) continue;
+
+    if (isMonthHeader((row[23] ?? "").trim())) {
+      currentAdvisor = nameCell;
+      continue;
+    }
+
+    if (nameCell === "Clientes 1er programa" && currentAdvisor) {
+      if (!porAsesor.find((a) => a.nombre === currentAdvisor)) {
+        porAsesor.push({
+          nombre:           currentAdvisor,
+          meses:            parseFloat(row[29] ?? "") || null,
+          mesesRenovacion:  parseFloat(row[30] ?? "") || null,
+        });
+      }
+    }
+  }
+
+  return { mesesPromedio, mesesRenovacion, porAsesor };
+}
+
 // ── PATRIMONIO ────────────────────────────────────────────────────────────────
 
 async function getSheetUnformatted(

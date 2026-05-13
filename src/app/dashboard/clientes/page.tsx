@@ -1,6 +1,6 @@
 import {
   getEERRCCForMonth, getClientesTrend, getFeedbackData,
-  getStatusClientes, getAnalisisClientesResumen,
+  getStatusClientes, getAnalisisClientesResumen, getOpsMetrics,
   filterFeedbackByMonth, nextMonthKey, currentMonthKey,
 } from "@/lib/sheets";
 import { Suspense } from "react";
@@ -63,12 +63,13 @@ export default async function ClientesPage({
   // Feedback is 1 month behind — selected=March → show April feedbacks
   const feedbackMonth = nextMonthKey(selectedMonth);
 
-  const [eerrcc, clientesTrend, feedbackRaw, statusRaw, analisisResumen] = await Promise.all([
+  const [eerrcc, clientesTrend, feedbackRaw, statusRaw, analisisResumen, opsMetrics] = await Promise.all([
     getEERRCCForMonth(selectedMonth),
     getClientesTrend(),
     getFeedbackData(),
     getStatusClientes(),
     getAnalisisClientesResumen(),
+    getOpsMetrics(),
   ]);
 
   // ── Clientes EERR CC ──
@@ -338,6 +339,80 @@ export default async function ClientesPage({
           </div>
         </div>
       </div>
+
+      {/* ── PERMANENCIA DE CLIENTES ── */}
+      {(opsMetrics.mesesPromedio !== null || opsMetrics.porAsesor.length > 0) && (
+        <>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Permanencia de Clientes</h2>
+          <div className="card mb-8">
+            {/* Global KPIs */}
+            {(opsMetrics.mesesPromedio !== null || opsMetrics.mesesRenovacion !== null) && (
+              <div className="grid grid-cols-2 gap-4 mb-6 pb-5 border-b border-surface-700/40">
+                <div className="text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Meses promedio (1er programa)</p>
+                  <p className="text-3xl font-bold text-white tabular-nums">
+                    {opsMetrics.mesesPromedio !== null ? opsMetrics.mesesPromedio.toFixed(1) : "—"}
+                  </p>
+                  <p className="text-xs text-slate-600 mt-1">meses activos en promedio</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Meses extra si renuevan</p>
+                  <p className="text-3xl font-bold text-emerald-400 tabular-nums">
+                    {opsMetrics.mesesRenovacion !== null ? opsMetrics.mesesRenovacion.toFixed(1) : "—"}
+                  </p>
+                  <p className="text-xs text-slate-600 mt-1">meses adicionales en renovación</p>
+                </div>
+              </div>
+            )}
+
+            {/* Per-advisor table */}
+            {opsMetrics.porAsesor.length > 0 && (
+              <>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">Por asesor</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-surface-700">
+                        {["Asesor", "Meses promedio", "Si renuevan"].map((h) => (
+                          <th key={h} className="px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase text-left last:text-right">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {opsMetrics.porAsesor
+                        .sort((a, b) => (b.meses ?? 0) - (a.meses ?? 0))
+                        .map((a) => (
+                          <tr key={a.nombre} className="border-b border-surface-800/50 hover:bg-surface-800/30">
+                            <td className="px-4 py-2.5 font-medium text-slate-300">{a.nombre}</td>
+                            <td className="px-4 py-2.5 text-slate-200 font-semibold tabular-nums">
+                              {a.meses !== null ? (
+                                <span className="flex items-center gap-2">
+                                  <span>{a.meses.toFixed(1)}</span>
+                                  {opsMetrics.mesesPromedio !== null && (
+                                    <span className={`text-[10px] font-normal ${
+                                      a.meses >= opsMetrics.mesesPromedio ? "text-emerald-400" : "text-rose-400"
+                                    }`}>
+                                      {a.meses >= opsMetrics.mesesPromedio ? "▲" : "▼"} prom global
+                                    </span>
+                                  )}
+                                </span>
+                              ) : "—"}
+                            </td>
+                            <td className="px-4 py-2.5 text-right tabular-nums">
+                              {a.mesesRenovacion !== null ? (
+                                <span className="text-emerald-400 font-semibold">{a.mesesRenovacion.toFixed(1)}</span>
+                              ) : <span className="text-slate-600">—</span>}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
 
       {/* ── ANÁLISIS POR RANGO DE FACTURACIÓN ── */}
       {rangoStats.length > 0 && (<>
