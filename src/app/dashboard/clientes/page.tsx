@@ -380,6 +380,7 @@ export default async function ClientesPage({
                     </thead>
                     <tbody>
                       {opsMetrics.porAsesor
+                        .filter((a) => new Set(statusRows.map((r) => r["Consultor"]).filter(Boolean)).has(a.nombre))
                         .sort((a, b) => (b.meses ?? 0) - (a.meses ?? 0))
                         .map((a) => (
                           <tr key={a.nombre} className="border-b border-surface-800/50 hover:bg-surface-800/30">
