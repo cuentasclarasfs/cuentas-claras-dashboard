@@ -732,39 +732,45 @@ export async function getOpsMetrics(): Promise<{
   const mesesPromedio   = toNum(globalRow[29]);
   const mesesRenovacion = toNum(globalRow[30]);
 
-  // Per-advisor logic:
-  // 1. When col B = advisor name AND col Y (idx 23) contains a month-like string → start block
-  // 2. First "Clientes 1er programa" row after that → read AE/AF
-  const MONTHS_ES = ["enero","febrero","marzo","abril","mayo","junio",
-                     "julio","agosto","septiembre","octubre","noviembre","diciembre"];
-  const isMonthHeader = (v: string | number | boolean) =>
-    typeof v === "string" && MONTHS_ES.some((m) => v.toLowerCase().trim().startsWith(m));
-
-  const SKIP = new Set(["Clientes 1er programa","Clientes Renovados","Devengaciones por mes",
-                        "Downsell","Clientes Nuevos","Clientes Recurrentes"]);
+  // Per-advisor logic (state machine — no dependency on col Y format):
+  // After "Clientes Renovados" we wait for the next advisor name.
+  // First non-empty, non-skip row = advisor name.
+  // "Clientes 1er programa" row = capture AE/AF for that advisor.
+  const SKIP = new Set([
+    "Clientes 1er programa","Clientes Renovados","Devengaciones por mes",
+    "Downsell","Clientes Nuevos","Clientes Recurrentes",
+  ]);
 
   const porAsesor: { nombre: string; meses: number | null; mesesRenovacion: number | null }[] = [];
   let currentAdvisor: string | null = null;
+  let waitingForAdvisor = true; // start in "looking for first advisor" state
 
   for (const row of rows.slice(6)) {  // row 7 onward (advisor blocks start here)
     const nameCell = String(row[0] ?? "").trim();
-    if (!nameCell) continue;
+    if (!nameCell) continue; // skip empty rows
 
-    // Advisor header: name in B + month name in Y (col index 23)
-    if (!SKIP.has(nameCell) && isMonthHeader(row[23] ?? "")) {
-      currentAdvisor = nameCell;
+    if (nameCell === "Clientes Renovados") {
+      waitingForAdvisor = true; // end of block → look for next advisor
       continue;
     }
 
-    // Summary row: capture metrics for the current advisor
-    if (nameCell === "Clientes 1er programa" && currentAdvisor) {
-      if (!porAsesor.find((a) => a.nombre === currentAdvisor)) {
+    if (nameCell === "Clientes 1er programa") {
+      if (currentAdvisor && !porAsesor.find((a) => a.nombre === currentAdvisor)) {
         porAsesor.push({
           nombre:          currentAdvisor,
           meses:           toNum(row[29]),
           mesesRenovacion: toNum(row[30]),
         });
       }
+      continue;
+    }
+
+    if (SKIP.has(nameCell)) continue;
+
+    // First non-skip, non-empty name after "Clientes Renovados" = new advisor
+    if (waitingForAdvisor) {
+      currentAdvisor     = nameCell;
+      waitingForAdvisor  = false;
     }
   }
 
