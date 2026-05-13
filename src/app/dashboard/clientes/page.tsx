@@ -1,6 +1,6 @@
 import {
   getEERRCCForMonth, getClientesTrend, getFeedbackData,
-  getStatusClientes, getAnalisisClientesResumen, getOpsMetrics,
+  getStatusClientes, getAnalisisClientesResumen, getOpsMetrics, getOpsEstadisticas,
   filterFeedbackByMonth, nextMonthKey, currentMonthKey,
 } from "@/lib/sheets";
 import { Suspense } from "react";
@@ -63,13 +63,14 @@ export default async function ClientesPage({
   // Feedback is 1 month behind — selected=March → show April feedbacks
   const feedbackMonth = nextMonthKey(selectedMonth);
 
-  const [eerrcc, clientesTrend, feedbackRaw, statusRaw, analisisResumen, opsMetrics] = await Promise.all([
+  const [eerrcc, clientesTrend, feedbackRaw, statusRaw, analisisResumen, opsMetrics, estadisticasRaw] = await Promise.all([
     getEERRCCForMonth(selectedMonth),
     getClientesTrend(),
     getFeedbackData(),
     getStatusClientes(),
     getAnalisisClientesResumen(),
     getOpsMetrics(),
+    getOpsEstadisticas(),
   ]);
 
   // ── Clientes EERR CC ──
@@ -366,42 +367,48 @@ export default async function ClientesPage({
             )}
 
             {/* Per-advisor table */}
-            {opsMetrics.porAsesor.length > 0 && (
+            {estadisticasRaw.length > 0 && (
               <>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">Por asesor</p>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-surface-700">
-                        {["Asesor", "Meses promedio", "Si renuevan"].map((h) => (
+                        {["Asesor", "Clientes totales", "Meses promedio", "Renovados", "Meses extra"].map((h) => (
                           <th key={h} className="px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase text-left last:text-right">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {opsMetrics.porAsesor
-                        .sort((a, b) => (b.meses ?? 0) - (a.meses ?? 0))
+                      {estadisticasRaw
+                        .sort((a, b) => b.clientesTotales - a.clientesTotales)
                         .map((a) => (
                           <tr key={a.nombre} className="border-b border-surface-800/50 hover:bg-surface-800/30">
                             <td className="px-4 py-2.5 font-medium text-slate-300">{a.nombre}</td>
+                            <td className="px-4 py-2.5 text-white font-bold tabular-nums">{a.clientesTotales || "—"}</td>
                             <td className="px-4 py-2.5 text-slate-200 font-semibold tabular-nums">
-                              {a.meses !== null ? (
+                              {a.mesesPromedio !== null ? (
                                 <span className="flex items-center gap-2">
-                                  <span>{a.meses.toFixed(1)}</span>
+                                  <span>{a.mesesPromedio.toFixed(1)}</span>
                                   {opsMetrics.mesesPromedio !== null && (
                                     <span className={`text-[10px] font-normal ${
-                                      a.meses >= opsMetrics.mesesPromedio ? "text-emerald-400" : "text-rose-400"
+                                      a.mesesPromedio >= opsMetrics.mesesPromedio ? "text-emerald-400" : "text-rose-400"
                                     }`}>
-                                      {a.meses >= opsMetrics.mesesPromedio ? "▲" : "▼"} prom global
+                                      {a.mesesPromedio >= opsMetrics.mesesPromedio ? "▲" : "▼"} prom global
                                     </span>
                                   )}
                                 </span>
                               ) : "—"}
                             </td>
+                            <td className="px-4 py-2.5 tabular-nums text-center">
+                              {a.clientesRenovados !== null
+                                ? <span className="text-brand-400 font-semibold">{a.clientesRenovados}</span>
+                                : <span className="text-slate-600">—</span>}
+                            </td>
                             <td className="px-4 py-2.5 text-right tabular-nums">
-                              {a.mesesRenovacion !== null ? (
-                                <span className="text-emerald-400 font-semibold">{a.mesesRenovacion.toFixed(1)}</span>
-                              ) : <span className="text-slate-600">—</span>}
+                              {a.mesesExtra !== null
+                                ? <span className="text-emerald-400 font-semibold">{a.mesesExtra.toFixed(1)}</span>
+                                : <span className="text-slate-600">—</span>}
                             </td>
                           </tr>
                         ))}

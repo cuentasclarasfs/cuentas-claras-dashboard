@@ -700,6 +700,42 @@ export function formatUSD(n: number): string {
   return `USD ${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
+// ── ESTADISTICAS (resumen por asesor — solapa "Estadisticas") ────────────────
+// A=Consultor, B=Clientes Totales, C=Promedio de meses, D=Clientes renovados, E=Promedio de meses extra
+export async function getOpsEstadisticas(): Promise<{
+  nombre: string;
+  clientesTotales: number;
+  mesesPromedio: number | null;
+  clientesRenovados: number | null;
+  mesesExtra: number | null;
+}[]> {
+  const auth   = getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+  const res    = await sheets.spreadsheets.values.get({
+    spreadsheetId:     process.env.SHEET_ID_STATUS_CLIENTES!,
+    range:             "Estadisticas!A:E",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    valueRenderOption: "UNFORMATTED_VALUE" as any,
+  });
+  const rows = (res.data.values ?? []) as (string | number | boolean)[][];
+  if (rows.length < 2) return [];
+
+  const toNum = (v: string | number | boolean | undefined): number | null => {
+    const n = Number(v ?? "");
+    return isFinite(n) ? n : null;
+  };
+
+  return rows.slice(1)
+    .filter((r) => r[0] && String(r[0]).trim())
+    .map((r) => ({
+      nombre:            String(r[0]).trim(),
+      clientesTotales:   Number(r[1] ?? 0) || 0,
+      mesesPromedio:     toNum(r[2]),
+      clientesRenovados: toNum(r[3]),
+      mesesExtra:        toNum(r[4]),
+    }));
+}
+
 // ── OPS METRICS (permanencia / retención) ─────────────────────────────────────
 // Reads "Ops" tab from Status Clientes workbook using UNFORMATTED_VALUE so
 // decimal values aren't truncated to integers by cell formatting.
