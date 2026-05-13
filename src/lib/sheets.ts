@@ -762,6 +762,8 @@ export async function getOpsMetrics(): Promise<{
           mesesRenovacion: toNum(row[30]),
         });
       }
+      // Reset: ready for next advisor block even if "Clientes Renovados" row is missing
+      waitingForAdvisor = true;
       continue;
     }
 
