@@ -492,9 +492,9 @@ export async function getVentasReuniones(): Promise<Record<string, string>[]> {
     "Closer":               row[12] ?? "",  // M
     "Facturacion":          row[14] ?? "",  // O
     "Status":               row[17] ?? "",  // R
-    "Cash Collected":       row[18] ?? "",  // S — $ 24hs (renamed col, kept key for compat)
-    "$ 24hs":               row[18] ?? "",  // S
-    "AOV Trato cerrado":    row[19] ?? "",  // T
+    "Cash Collected":       row[19] ?? "",  // T — $ 24hs (kept key for compat)
+    "$ 24hs":               row[19] ?? "",  // T
+    "AOV Trato cerrado":    row[20] ?? "",  // U
     "Dias hasta agenda":    row[21] ?? "",  // V
     "Antigüedad negocio":   row[8]  ?? "",  // I
   }));

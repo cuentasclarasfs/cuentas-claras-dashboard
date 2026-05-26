@@ -92,9 +92,10 @@ function closingStats(rows: Record<string, string>[]) {
   const cerradosRows = rows.filter((r) => isClosedStatus(r["Status"]) || r["Status"].toLowerCase().includes("downsell"));
   const facturacion  = cerradosRows.reduce((s, r) => s + parseNumES(r["Facturacion"] ?? ""), 0);
   const cashLlamada  = cerradosRows.reduce((s, r) => s + parseNumES(r["Cash Collected"] ?? ""), 0);
-  const aovVals      = cerradosRows.map((r) => parseNumES(r["AOV Trato cerrado"] ?? "")).filter((v) => v > 0);
+  // AOV: promedio de todos los valores presentes en col U (no solo cerrados)
+  const aovVals      = rows.map((r) => parseNumES(r["AOV Trato cerrado"] ?? "")).filter((v) => v > 0);
   const aovPromedio  = aovVals.length > 0 ? aovVals.reduce((s, v) => s + v, 0) / aovVals.length : 0;
-  const aovTotal     = cerradosRows.length > 0 ? cerradosRows.reduce((s, r) => s + parseNumES(r["AOV Trato cerrado"] ?? ""), 0) / cerradosRows.length : 0;
+  const aovTotal     = rows.length > 0 ? rows.reduce((s, r) => s + parseNumES(r["AOV Trato cerrado"] ?? ""), 0) / rows.length : 0;
   return { total, noPres, cancelados, noShow, sena, efectivas, ccSpa, downsell, facturacion, cashLlamada, aovPromedio, aovTotal };
 }
 
@@ -425,10 +426,9 @@ export default async function VentasPage({
                       </td>
                       {/* AOV total */}
                       {(() => {
-                        const totCerrados = reuniones.filter((r) => isClosedStatus(r["Status"]) || r["Status"].toLowerCase().includes("downsell"));
-                        const totAovVals = totCerrados.map((r) => parseNumES(r["AOV Trato cerrado"] ?? "")).filter((v) => v > 0);
+                        const totAovVals = reuniones.map((r) => parseNumES(r["AOV Trato cerrado"] ?? "")).filter((v) => v > 0);
                         const totAovProm = totAovVals.length > 0 ? totAovVals.reduce((s, v) => s + v, 0) / totAovVals.length : 0;
-                        const totAovAll  = totCerrados.length > 0 ? totCerrados.reduce((s, r) => s + parseNumES(r["AOV Trato cerrado"] ?? ""), 0) / totCerrados.length : 0;
+                        const totAovAll  = reuniones.length > 0 ? reuniones.reduce((s, r) => s + parseNumES(r["AOV Trato cerrado"] ?? ""), 0) / reuniones.length : 0;
                         return (
                           <td className="px-3 py-3 text-center text-sky-300 tabular-nums font-semibold">
                             {totAovProm > 0 ? formatARS(totAovProm) : "—"}
