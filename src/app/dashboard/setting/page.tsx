@@ -336,7 +336,8 @@ export default async function SettingPage({
   };
   const pieDataCurrent = leadTypesADS.map((t) => ({ name: `Tipo ${t.tipo}`, value: t.leads, color: TIPO_COLORS[t.tipo] }));
   const pieDataPrev    = leadTypesADSPrev.map((t) => ({ name: `Tipo ${t.tipo}`, value: t.leads, color: TIPO_COLORS[t.tipo] }));
-  const inversionPorTipoA = leadTypesADS[0].leads > 0 && inversion > 0 ? inversion / leadTypesADS[0].leads : null;
+  const inversionPorTipoA     = leadTypesADS[0].leads > 0 && inversion > 0 ? inversion / leadTypesADS[0].leads : null;
+  const inversionPorTipoAPrev = leadTypesADSPrev[0].leads > 0 && gastoIGPrev > 0 ? gastoIGPrev / leadTypesADSPrev[0].leads : null;
 
   // AD de origen — agendas ADS Mje IG
   const adOrigenStats = (() => {
@@ -1147,11 +1148,23 @@ export default async function SettingPage({
           </div>
           {/* Inv./Tipo A */}
           {inversionPorTipoA != null && (
-            <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
               <span className="text-amber-400 font-semibold">Inversión / Tipo A:</span>
               <span className="text-amber-300 font-bold">{fmtUSD(inversionPorTipoA)}</span>
-              <span>·</span>
+              {inversionPorTipoAPrev != null && (
+                <span className="flex items-center gap-1">
+                  <span className="text-slate-600">ant: {fmtUSD(inversionPorTipoAPrev)}</span>
+                  <VarBadge curr={inversionPorTipoA} prev={inversionPorTipoAPrev} lowerBetter />
+                </span>
+              )}
+              <span className="text-slate-700">·</span>
               <span>Inversión total: <span className="text-brand-400 font-semibold">{fmtUSD(inversion)}</span></span>
+              {gastoIGPrev > 0 && (
+                <span className="flex items-center gap-1">
+                  <span className="text-slate-600">ant: {fmtUSD(gastoIGPrev)}</span>
+                  <VarBadge curr={inversion} prev={gastoIGPrev} lowerBetter />
+                </span>
+              )}
             </div>
           )}
         </div>
