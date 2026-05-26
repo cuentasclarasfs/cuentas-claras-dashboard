@@ -230,9 +230,13 @@ export default async function SettingPage({
     if (e.tipoA) rows = rows.filter((r) => matchTipo(r, "A"));
     const agendas = rows.length;
     const cierres = rows.filter((r) => isClosedStatus(r["Status"])).length;
-    const diasVals = rows.map((r) => parseFloat(r["Dias hasta agenda"] ?? "")).filter((v) => isFinite(v) && v > 0);
-    const diasPromedio = diasVals.length > 0 ? diasVals.reduce((s, v) => s + v, 0) / diasVals.length : null;
-    return { ...e, agendas, cierres, diasPromedio };
+    const diasVals = rows.map((r) => parseFloat(r["Dias hasta agenda"] ?? "")).filter((v) => isFinite(v) && v > 0).sort((a, b) => a - b);
+    const diasMediana = diasVals.length > 0
+      ? diasVals.length % 2 === 1
+        ? diasVals[Math.floor(diasVals.length / 2)]
+        : (diasVals[diasVals.length / 2 - 1] + diasVals[diasVals.length / 2]) / 2
+      : null;
+    return { ...e, agendas, cierres, diasPromedio: diasMediana };
   });
 
   // ── VSL METRICS ───────────────────────────────────────────────────────────
@@ -545,7 +549,7 @@ export default async function SettingPage({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-700">
-                {["Estrategia", "Leads", "Agendas", "% Leads→Ag.", "Cierres", "% Leads→Cierre", "Días p/ agenda"].map((h) => (
+                {["Estrategia", "Leads", "Agendas", "% Leads→Ag.", "Cierres", "% Leads→Cierre", "Mediana días p/ ag."].map((h) => (
                   <th key={h} className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase text-center first:text-left">{h}</th>
                 ))}
               </tr>
@@ -577,12 +581,15 @@ export default async function SettingPage({
                 const tAg = leadsAnalisis.reduce((s, e) => s + e.agendas, 0);
                 const tCi = leadsAnalisis.reduce((s, e) => s + e.cierres, 0);
                 const diasAll = leadsAnalisis.flatMap((e) => {
-                  // Re-derive days from rows that match each strategy
                   let rows = byCanal(e.canal);
                   if (e.tipoA) rows = rows.filter((r) => matchTipo(r, "A"));
                   return rows.map((r) => parseFloat(r["Dias hasta agenda"] ?? "")).filter((v) => isFinite(v) && v > 0);
-                });
-                const tDias = diasAll.length > 0 ? diasAll.reduce((s, v) => s + v, 0) / diasAll.length : null;
+                }).sort((a, b) => a - b);
+                const tDias = diasAll.length > 0
+                  ? diasAll.length % 2 === 1
+                    ? diasAll[Math.floor(diasAll.length / 2)]
+                    : (diasAll[diasAll.length / 2 - 1] + diasAll[diasAll.length / 2]) / 2
+                  : null;
                 return (
                   <tr className="bg-surface-800/40 border-t border-surface-600/50">
                     <td className="px-4 py-3 font-bold text-white">TOTAL</td>
