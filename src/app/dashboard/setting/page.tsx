@@ -271,6 +271,20 @@ export default async function SettingPage({
   const fmaCostSegPrev    = fmaSeguidoresPrev > 0 && gastoFMAPrev > 0 ? gastoFMAPrev / fmaSeguidoresPrev : null;
   const fmaCostLead       = fmaEcoLeads > 0 && gastoFMA > 0 ? gastoFMA / fmaEcoLeads : null;
 
+  // ── VSL: AD de origen ────────────────────────────────────────────────────
+  const adOrigenVSL = (() => {
+    const mapa = new Map<string, { agendas: number; cierres: number }>();
+    for (const r of reunVSL) {
+      const ad = (r["AD de origen"] ?? "").trim();
+      if (!ad) continue;
+      const entry = mapa.get(ad) ?? { agendas: 0, cierres: 0 };
+      entry.agendas++;
+      if (isClosedStatus(r["Status"])) entry.cierres++;
+      mapa.set(ad, entry);
+    }
+    return [...mapa.entries()].map(([ad, v]) => ({ ad, ...v })).sort((a, b) => b.agendas - a.agendas);
+  })();
+
   // ── SECTION ADS MJE IG: existing data ────────────────────────────────────
 
   const inversion     = msgIG.reduce((s, r) => s + parseUSD(r["Gasto"]), 0);
@@ -660,6 +674,57 @@ export default async function SettingPage({
           );
         })()}
       </div>
+
+      {/* VSL — AD de origen */}
+      {adOrigenVSL.length > 0 && (
+        <div className="card mb-8">
+          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">AD de origen — agendas VSL</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-surface-700">
+                  {["Comunicación / AD", "Agendas", "% del total", "Cierres", "CR%"].map((h) => (
+                    <th key={h} className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase text-center first:text-left">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {adOrigenVSL.map((a) => {
+                  const crNum   = a.agendas > 0 ? (a.cierres / a.agendas) * 100 : null;
+                  const pctTot  = vslAgendasReun > 0 ? (a.agendas / vslAgendasReun) * 100 : null;
+                  const crColor = crNum === null ? "text-slate-500"
+                    : crNum >= 25 ? "text-emerald-400"
+                    : crNum >= 15 ? "text-amber-400"
+                    : "text-rose-400";
+                  return (
+                    <tr key={a.ad} className="border-b border-surface-800/50 hover:bg-surface-800/30">
+                      <td className="px-4 py-2.5 font-medium text-slate-300">{a.ad}</td>
+                      <td className="px-4 py-2.5 text-center font-bold text-white">{a.agendas}</td>
+                      <td className="px-4 py-2.5 text-center text-slate-400">
+                        {pctTot !== null ? `${pctTot.toFixed(1)}%` : "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{a.cierres || "—"}</td>
+                      <td className={`px-4 py-2.5 text-center font-semibold ${crColor}`}>
+                        {crNum !== null ? `${crNum.toFixed(1)}%` : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {/* Total */}
+                <tr className="bg-surface-800/40 border-t border-surface-600/50">
+                  <td className="px-4 py-2.5 font-bold text-white">Total</td>
+                  <td className="px-4 py-2.5 text-center font-bold text-white">{vslAgendasReun}</td>
+                  <td className="px-4 py-2.5 text-center text-slate-500">100%</td>
+                  <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{vslCierres || "—"}</td>
+                  <td className="px-4 py-2.5 text-center font-bold text-emerald-400">
+                    {vslAgendasReun > 0 ? pct(vslCierres, vslAgendasReun) : "—"}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ── 4. FMA ── */}
       <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">FMA — Follow Me Ads</h2>
