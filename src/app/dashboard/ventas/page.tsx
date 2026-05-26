@@ -164,11 +164,26 @@ export default async function VentasPage({
     .filter((c) => c.total > 0);
 
   // ── canales (col L + col D) ──
+  // Canales "otros": todo lo que no es VSL, ADS Mje IG ni FMA, desglosado individualmente
+  const isKnownCanal = (r: Record<string,string>) =>
+    r["Canal"] === "Publi a VSL" || r["Canal"] === "ADS Mje IG" || isFMA(r["Canal"]);
+  const otrosCanalesNames = [
+    ...new Set(
+      [...reuniones, ...reunionesPrev]
+        .filter((r) => r["Canal"]?.trim() && !isKnownCanal(r))
+        .map((r) => r["Canal"].trim())
+    ),
+  ].sort();
+
   const canalesDef = [
     { nombre: "Publi a VSL", gasto: gastos.vsl, match: (r: Record<string,string>) => r["Canal"] === "Publi a VSL" },
     { nombre: "ADS Mje IG",  gasto: gastos.ig,  match: (r: Record<string,string>) => r["Canal"] === "ADS Mje IG"  },
     { nombre: "FMA",         gasto: gastos.fma, match: (r: Record<string,string>) => isFMA(r["Canal"])             },
-    { nombre: "Otras",       gasto: 0,          match: (r: Record<string,string>) => r["Canal"] !== "Publi a VSL" && r["Canal"] !== "ADS Mje IG" && !isFMA(r["Canal"]) },
+    ...otrosCanalesNames.map((canal) => ({
+      nombre: canal,
+      gasto: 0,
+      match: (r: Record<string,string>) => r["Canal"].trim() === canal,
+    })),
   ];
   const canalStats = canalesDef.map(({ nombre, gasto, match }) => {
     const s  = closingStats(reuniones.filter(match));
@@ -177,22 +192,22 @@ export default async function VentasPage({
     const cacCanal     = s.ccSpa > 0 && gasto > 0 ? gasto / s.ccSpa : null;
     const cr           = s.efectivas > 0 ? (s.ccSpa / s.efectivas) * 100 : 0;
     return { nombre, gasto, ...s, costReu, costEfectiva, cacCanal, cr };
-  });
+  }).filter((c) => c.total > 0 || c.gasto > 0);
 
-  // Prev-period stats per canal (for comparison row + CAC Ant. column)
-  const canalStatsPrev = [
-    { gasto: gastosPrev.vsl, match: (r: Record<string,string>) => r["Canal"] === "Publi a VSL" },
-    { gasto: gastosPrev.ig,  match: (r: Record<string,string>) => r["Canal"] === "ADS Mje IG"  },
-    { gasto: gastosPrev.fma, match: (r: Record<string,string>) => isFMA(r["Canal"]) },
-    { gasto: 0,              match: (r: Record<string,string>) => r["Canal"] !== "Publi a VSL" && r["Canal"] !== "ADS Mje IG" && !isFMA(r["Canal"]) },
-  ].map(({ gasto, match }) => {
-    const s            = closingStats(reunionesPrev.filter(match));
-    const costReu      = s.total > 0 && gasto > 0 ? gasto / s.total : null;
-    const costEfectiva = s.efectivas > 0 && gasto > 0 ? gasto / s.efectivas : null;
-    const cacCanal     = s.ccSpa > 0 && gasto > 0 ? gasto / s.ccSpa : null;
+  // Prev-period stats per canal (aligned 1:1 with canalStats)
+  const canalStatsPrev = canalStats.map(({ nombre }) => {
+    const def = canalesDef.find((d) => d.nombre === nombre)!;
+    const gastoPrev = nombre === "Publi a VSL" ? gastosPrev.vsl
+      : nombre === "ADS Mje IG" ? gastosPrev.ig
+      : nombre === "FMA" ? gastosPrev.fma
+      : 0;
+    const s            = closingStats(reunionesPrev.filter(def.match));
+    const costReu      = s.total > 0 && gastoPrev > 0 ? gastoPrev / s.total : null;
+    const costEfectiva = s.efectivas > 0 && gastoPrev > 0 ? gastoPrev / s.efectivas : null;
+    const cacCanal     = s.ccSpa > 0 && gastoPrev > 0 ? gastoPrev / s.ccSpa : null;
     const cr           = s.efectivas > 0 ? (s.ccSpa / s.efectivas) * 100 : 0;
     const nsCan        = s.total > 0 ? ((s.noShow + s.cancelados) / s.total) * 100 : 0;
-    return { gasto, ...s, costReu, costEfectiva, cacCanal, cr, nsCan };
+    return { nombre, gasto: gastoPrev, ...s, costReu, costEfectiva, cacCanal, cr, nsCan };
   });
 
   const fmtUSD = (n: number | null) => n != null && n > 0 ? `$${Math.round(n).toLocaleString()}` : "—";
