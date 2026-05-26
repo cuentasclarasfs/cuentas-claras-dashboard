@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { SalesPeriodPicker } from "@/components/ui/SalesPeriodPicker";
 import { TiposPieCharts } from "@/components/ui/TiposPieCharts";
 
-export const revalidate = 0;
+export const revalidate = 60;
 
 // ── date helpers ──────────────────────────────────────────────────────────────
 
