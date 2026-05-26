@@ -275,8 +275,7 @@ export default async function SettingPage({
   const adOrigenVSL = (() => {
     const mapa = new Map<string, { agendas: number; pendientes: number; cierres: number }>();
     for (const r of reunVSL) {
-      const ad = (r["AD de origen"] ?? "").trim();
-      if (!ad) continue;
+      const ad = (r["AD de origen"] ?? "").trim() || "Sin AD de origen";
       const entry = mapa.get(ad) ?? { agendas: 0, pendientes: 0, cierres: 0 };
       entry.agendas++;
       if (!(r["Status"] ?? "").trim()) entry.pendientes++;
