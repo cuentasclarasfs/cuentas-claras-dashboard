@@ -273,17 +273,19 @@ export default async function SettingPage({
 
   // ── VSL: AD de origen ────────────────────────────────────────────────────
   const adOrigenVSL = (() => {
-    const mapa = new Map<string, { agendas: number; cierres: number }>();
+    const mapa = new Map<string, { agendas: number; pendientes: number; cierres: number }>();
     for (const r of reunVSL) {
       const ad = (r["AD de origen"] ?? "").trim();
       if (!ad) continue;
-      const entry = mapa.get(ad) ?? { agendas: 0, cierres: 0 };
+      const entry = mapa.get(ad) ?? { agendas: 0, pendientes: 0, cierres: 0 };
       entry.agendas++;
+      if (!(r["Status"] ?? "").trim()) entry.pendientes++;
       if (isClosedStatus(r["Status"])) entry.cierres++;
       mapa.set(ad, entry);
     }
     return [...mapa.entries()].map(([ad, v]) => ({ ad, ...v })).sort((a, b) => b.agendas - a.agendas);
   })();
+  const vslPendientes = reunVSL.filter((r) => !(r["Status"] ?? "").trim()).length;
 
   // ── SECTION ADS MJE IG: existing data ────────────────────────────────────
 
@@ -683,14 +685,15 @@ export default async function SettingPage({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-surface-700">
-                  {["Comunicación / AD", "Agendas", "% del total", "Cierres", "CR%"].map((h) => (
+                  {["Comunicación / AD", "Agendas", "% del total", "Pendientes", "Realizadas", "Cierres", "CR%"].map((h) => (
                     <th key={h} className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase text-center first:text-left">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {adOrigenVSL.map((a) => {
-                  const crNum   = a.agendas > 0 ? (a.cierres / a.agendas) * 100 : null;
+                  const realizadas = a.agendas - a.pendientes;
+                  const crNum   = realizadas > 0 ? (a.cierres / realizadas) * 100 : null;
                   const pctTot  = vslAgendasReun > 0 ? (a.agendas / vslAgendasReun) * 100 : null;
                   const crColor = crNum === null ? "text-slate-500"
                     : crNum >= 25 ? "text-emerald-400"
@@ -703,6 +706,10 @@ export default async function SettingPage({
                       <td className="px-4 py-2.5 text-center text-slate-400">
                         {pctTot !== null ? `${pctTot.toFixed(1)}%` : "—"}
                       </td>
+                      <td className="px-4 py-2.5 text-center text-amber-400 tabular-nums">
+                        {a.pendientes > 0 ? a.pendientes : "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-center text-slate-300 tabular-nums">{realizadas}</td>
                       <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{a.cierres || "—"}</td>
                       <td className={`px-4 py-2.5 text-center font-semibold ${crColor}`}>
                         {crNum !== null ? `${crNum.toFixed(1)}%` : "—"}
@@ -711,15 +718,25 @@ export default async function SettingPage({
                   );
                 })}
                 {/* Total */}
-                <tr className="bg-surface-800/40 border-t border-surface-600/50">
-                  <td className="px-4 py-2.5 font-bold text-white">Total</td>
-                  <td className="px-4 py-2.5 text-center font-bold text-white">{vslAgendasReun}</td>
-                  <td className="px-4 py-2.5 text-center text-slate-500">100%</td>
-                  <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{vslCierres || "—"}</td>
-                  <td className="px-4 py-2.5 text-center font-bold text-emerald-400">
-                    {vslAgendasReun > 0 ? pct(vslCierres, vslAgendasReun) : "—"}
-                  </td>
-                </tr>
+                {(() => {
+                  const realizadasTot = vslAgendasReun - vslPendientes;
+                  const crTot = realizadasTot > 0 ? (vslCierres / realizadasTot) * 100 : null;
+                  return (
+                    <tr className="bg-surface-800/40 border-t border-surface-600/50">
+                      <td className="px-4 py-2.5 font-bold text-white">Total</td>
+                      <td className="px-4 py-2.5 text-center font-bold text-white">{vslAgendasReun}</td>
+                      <td className="px-4 py-2.5 text-center text-slate-500">100%</td>
+                      <td className="px-4 py-2.5 text-center text-amber-400 font-semibold">
+                        {vslPendientes > 0 ? vslPendientes : "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-center font-bold text-white">{realizadasTot}</td>
+                      <td className="px-4 py-2.5 text-center font-bold text-emerald-400">{vslCierres || "—"}</td>
+                      <td className="px-4 py-2.5 text-center font-bold text-emerald-400">
+                        {crTot !== null ? `${crTot.toFixed(1)}%` : "—"}
+                      </td>
+                    </tr>
+                  );
+                })()}
               </tbody>
             </table>
           </div>
