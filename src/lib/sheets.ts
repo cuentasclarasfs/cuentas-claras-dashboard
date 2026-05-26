@@ -479,7 +479,7 @@ export async function getVentasMetrics2026() {
 }
 
 export async function getVentasReuniones(): Promise<Record<string, string>[]> {
-  const rows = await getSheet(process.env.SHEET_ID_VENTAS!, "Resumen Reuniones!A:T");
+  const rows = await getSheet(process.env.SHEET_ID_VENTAS!, "Resumen Reuniones!A:V");
   if (rows.length < 2) return [];
   // Map positionally — col R header is blank spaces so we can't rely on rowsToObjects
   return rows.slice(1).map((row) => ({
@@ -492,7 +492,10 @@ export async function getVentasReuniones(): Promise<Record<string, string>[]> {
     "Closer":               row[12] ?? "",  // M
     "Facturacion":          row[14] ?? "",  // O
     "Status":               row[17] ?? "",  // R
-    "Cash Collected":       row[19] ?? "",  // T
+    "Cash Collected":       row[18] ?? "",  // S — $ 24hs (renamed col, kept key for compat)
+    "$ 24hs":               row[18] ?? "",  // S
+    "AOV Trato cerrado":    row[19] ?? "",  // T
+    "Dias hasta agenda":    row[21] ?? "",  // V
     "Antigüedad negocio":   row[8]  ?? "",  // I
   }));
 }

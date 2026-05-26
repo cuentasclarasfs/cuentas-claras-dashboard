@@ -92,7 +92,10 @@ function closingStats(rows: Record<string, string>[]) {
   const cerradosRows = rows.filter((r) => isClosedStatus(r["Status"]) || r["Status"].toLowerCase().includes("downsell"));
   const facturacion  = cerradosRows.reduce((s, r) => s + parseNumES(r["Facturacion"] ?? ""), 0);
   const cashLlamada  = cerradosRows.reduce((s, r) => s + parseNumES(r["Cash Collected"] ?? ""), 0);
-  return { total, noPres, cancelados, noShow, sena, efectivas, ccSpa, downsell, facturacion, cashLlamada };
+  const aovVals      = cerradosRows.map((r) => parseNumES(r["AOV Trato cerrado"] ?? "")).filter((v) => v > 0);
+  const aovPromedio  = aovVals.length > 0 ? aovVals.reduce((s, v) => s + v, 0) / aovVals.length : 0;
+  const aovTotal     = cerradosRows.length > 0 ? cerradosRows.reduce((s, r) => s + parseNumES(r["AOV Trato cerrado"] ?? ""), 0) / cerradosRows.length : 0;
+  return { total, noPres, cancelados, noShow, sena, efectivas, ccSpa, downsell, facturacion, cashLlamada, aovPromedio, aovTotal };
 }
 
 // ── page ──────────────────────────────────────────────────────────────────────
@@ -233,7 +236,7 @@ export default async function VentasPage({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-surface-700">
-                  {["Closer","Llamadas","N.Pres.","Cancel.","No show","NS+Can%","Efect.","CC/SPA","CR%","DS","Fact.","Cash llam.","Seña"].map((h) => (
+                  {["Closer","Llamadas","N.Pres.","Cancel.","No show","NS+Can%","Efect.","CC/SPA","CR%","DS","Fact.","24hs","AOV Prom.","Seña"].map((h) => (
                     <th key={h} className="px-3 py-2 text-center text-xs font-semibold text-slate-500 uppercase whitespace-nowrap first:text-left">{h}</th>
                   ))}
                 </tr>
@@ -278,6 +281,10 @@ export default async function VentasPage({
                         {c.cashLlamada > 0 ? formatARS(c.cashLlamada) : "—"}
                         {c.facturacion > 0 && c.cashLlamada > 0 && <span className="text-xs text-slate-500 ml-1">({((c.cashLlamada/c.facturacion)*100).toFixed(0)}%)</span>}
                       </td>
+                      <td className="px-3 py-3 text-center text-sky-300 tabular-nums">
+                        {c.aovPromedio > 0 ? formatARS(c.aovPromedio) : "—"}
+                        {c.aovTotal > 0 && c.aovTotal !== c.aovPromedio && <div className="text-[10px] text-slate-500">total: {formatARS(c.aovTotal)}</div>}
+                      </td>
                       <td className="px-3 py-3 text-center text-amber-300 text-xs">{c.sena > 0 ? c.sena : "—"}</td>
                     </tr>
                   );
@@ -295,7 +302,7 @@ export default async function VentasPage({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-700">
-                {["Canal","$ Inv.","Llamadas","$ Reu.","N.Pres.","Cancel.","No show","NS+Can%","Efect.","C.Efec.","CC/SPA","CR%","CAC","CAC Ant."].map((h) => (
+                {["Canal","$ Inv.","Llamadas","$ Reu.","N.Pres.","Cancel.","No show","NS+Can%","Efect.","C.Efec.","CC/SPA","CR%","CAC","CAC Ant.","AOV"].map((h) => (
                   <th key={h} className="px-3 py-2 text-center text-xs font-semibold text-slate-500 uppercase whitespace-nowrap first:text-left">{h}</th>
                 ))}
               </tr>
@@ -330,6 +337,10 @@ export default async function VentasPage({
                           {cacDiff > 0 ? "▲" : "▼"}{cacDiff > 0 ? "+" : ""}{cacDiff.toFixed(0)}%
                         </span>
                       )}
+                    </td>
+                    {/* AOV */}
+                    <td className="px-3 py-3 text-center text-sky-300 tabular-nums">
+                      {c.aovPromedio > 0 ? formatARS(c.aovPromedio) : "—"}
                     </td>
                   </tr>
                 );
@@ -412,6 +423,19 @@ export default async function VentasPage({
                           </span>
                         )}
                       </td>
+                      {/* AOV total */}
+                      {(() => {
+                        const totCerrados = reuniones.filter((r) => isClosedStatus(r["Status"]) || r["Status"].toLowerCase().includes("downsell"));
+                        const totAovVals = totCerrados.map((r) => parseNumES(r["AOV Trato cerrado"] ?? "")).filter((v) => v > 0);
+                        const totAovProm = totAovVals.length > 0 ? totAovVals.reduce((s, v) => s + v, 0) / totAovVals.length : 0;
+                        const totAovAll  = totCerrados.length > 0 ? totCerrados.reduce((s, r) => s + parseNumES(r["AOV Trato cerrado"] ?? ""), 0) / totCerrados.length : 0;
+                        return (
+                          <td className="px-3 py-3 text-center text-sky-300 tabular-nums font-semibold">
+                            {totAovProm > 0 ? formatARS(totAovProm) : "—"}
+                            {totAovAll > 0 && totAovAll !== totAovProm && <div className="text-[10px] text-slate-500">total: {formatARS(totAovAll)}</div>}
+                          </td>
+                        );
+                      })()}
                     </tr>
 
                     {/* ── Período anterior comparison row ── */}
@@ -466,6 +490,8 @@ export default async function VentasPage({
                         <CmpBadge curr={tCac ?? 0} prev={prevCac ?? 0} lowerBetter />
                       </td>
                       {/* CAC Ant. column — blank in comparison row (already shown above) */}
+                      <td />
+                      {/* AOV — blank in comparison row */}
                       <td />
                     </tr>
                   </>
@@ -793,7 +819,7 @@ function ClosingFunnel({ curr, prev, prevLabel }: { curr: Stats; prev: Stats; pr
       )}
 
       {/* Financiero */}
-      <div className="grid grid-cols-2 gap-3 pt-4 mt-1 border-t border-surface-700/40">
+      <div className="grid grid-cols-3 gap-3 pt-4 mt-1 border-t border-surface-700/40">
         <div className="bg-surface-800/50 rounded-xl p-3 text-center border border-surface-700/50">
           <p className="text-[10px] uppercase tracking-wide text-slate-500 mb-1">Facturación total</p>
           <p className="text-xl font-bold text-brand-400 tabular-nums">
@@ -807,7 +833,7 @@ function ClosingFunnel({ curr, prev, prevLabel }: { curr: Stats; prev: Stats; pr
           )}
         </div>
         <div className="bg-surface-800/50 rounded-xl p-3 text-center border border-surface-700/50">
-          <p className="text-[10px] uppercase tracking-wide text-slate-500 mb-1">Cash collected</p>
+          <p className="text-[10px] uppercase tracking-wide text-slate-500 mb-1">$ 24hs</p>
           <p className="text-xl font-bold text-emerald-400 tabular-nums">
             {curr.cashLlamada > 0 ? formatARS(curr.cashLlamada) : "—"}
           </p>
@@ -818,6 +844,21 @@ function ClosingFunnel({ curr, prev, prevLabel }: { curr: Stats; prev: Stats; pr
             </p>
           )}
           {cashPct > 0 && <p className="text-[10px] text-slate-600">{cashPct.toFixed(0)}% de fact.</p>}
+        </div>
+        <div className="bg-surface-800/50 rounded-xl p-3 text-center border border-surface-700/50">
+          <p className="text-[10px] uppercase tracking-wide text-slate-500 mb-1">AOV Trato cerrado prom.</p>
+          <p className="text-xl font-bold text-sky-300 tabular-nums">
+            {curr.aovPromedio > 0 ? formatARS(curr.aovPromedio) : "—"}
+          </p>
+          {prev.aovPromedio > 0 && (
+            <p className="text-[11px] text-slate-500 mt-0.5 flex items-center justify-center gap-1">
+              prev: {formatARS(prev.aovPromedio)}{" "}
+              <PctBadge a={curr.aovPromedio} b={prev.aovPromedio} />
+            </p>
+          )}
+          {curr.aovTotal > 0 && (
+            <p className="text-[10px] text-slate-600 mt-0.5">AOV total: {formatARS(curr.aovTotal)}</p>
+          )}
         </div>
       </div>
     </div>

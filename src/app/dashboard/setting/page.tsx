@@ -230,7 +230,9 @@ export default async function SettingPage({
     if (e.tipoA) rows = rows.filter((r) => matchTipo(r, "A"));
     const agendas = rows.length;
     const cierres = rows.filter((r) => isClosedStatus(r["Status"])).length;
-    return { ...e, agendas, cierres };
+    const diasVals = rows.map((r) => parseFloat(r["Dias hasta agenda"] ?? "")).filter((v) => isFinite(v) && v > 0);
+    const diasPromedio = diasVals.length > 0 ? diasVals.reduce((s, v) => s + v, 0) / diasVals.length : null;
+    return { ...e, agendas, cierres, diasPromedio };
   });
 
   // ── VSL METRICS ───────────────────────────────────────────────────────────
@@ -527,7 +529,7 @@ export default async function SettingPage({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-700">
-                {["Estrategia", "Leads", "Agendas", "% Leads→Ag.", "Cierres", "% Leads→Cierre"].map((h) => (
+                {["Estrategia", "Leads", "Agendas", "% Leads→Ag.", "Cierres", "% Leads→Cierre", "Días p/ agenda"].map((h) => (
                   <th key={h} className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase text-center first:text-left">{h}</th>
                 ))}
               </tr>
@@ -548,6 +550,9 @@ export default async function SettingPage({
                   <td className="px-4 py-3 text-center text-emerald-400">
                     {e.leads > 0 ? pct(e.cierres, e.leads) : "—"}
                   </td>
+                  <td className="px-4 py-3 text-center text-sky-300 tabular-nums">
+                    {e.diasPromedio !== null ? `${e.diasPromedio.toFixed(1)} días` : "—"}
+                  </td>
                 </tr>
               ))}
               {/* TOTAL */}
@@ -555,6 +560,13 @@ export default async function SettingPage({
                 const tL  = leadsAnalisis.reduce((s, e) => s + e.leads,   0);
                 const tAg = leadsAnalisis.reduce((s, e) => s + e.agendas, 0);
                 const tCi = leadsAnalisis.reduce((s, e) => s + e.cierres, 0);
+                const diasAll = leadsAnalisis.flatMap((e) => {
+                  // Re-derive days from rows that match each strategy
+                  let rows = byCanal(e.canal);
+                  if (e.tipoA) rows = rows.filter((r) => matchTipo(r, "A"));
+                  return rows.map((r) => parseFloat(r["Dias hasta agenda"] ?? "")).filter((v) => isFinite(v) && v > 0);
+                });
+                const tDias = diasAll.length > 0 ? diasAll.reduce((s, v) => s + v, 0) / diasAll.length : null;
                 return (
                   <tr className="bg-surface-800/40 border-t border-surface-600/50">
                     <td className="px-4 py-3 font-bold text-white">TOTAL</td>
@@ -563,6 +575,9 @@ export default async function SettingPage({
                     <td className="px-4 py-3 text-center text-brand-400">—</td>
                     <td className="px-4 py-3 text-center font-bold text-emerald-400">{tCi || "—"}</td>
                     <td className="px-4 py-3 text-center font-bold text-emerald-400">{tL > 0 ? pct(tCi, tL) : "—"}</td>
+                    <td className="px-4 py-3 text-center text-sky-300 tabular-nums font-semibold">
+                      {tDias !== null ? `${tDias.toFixed(1)} días` : "—"}
+                    </td>
                   </tr>
                 );
               })()}
