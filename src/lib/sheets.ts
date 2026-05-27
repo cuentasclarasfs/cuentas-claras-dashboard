@@ -219,7 +219,7 @@ export async function getEERRCCForMonth(monthKey: string): Promise<{
   ltgp: number | null;
   relacionLTGPCAC: number | null;
 } | null> {
-  const rows = await getSheet(process.env.SHEET_ID_EERR!, "'EERR CC'!A35:AZ742");
+  const rows = await getSheet(process.env.SHEET_ID_EERR!, "'EERR CC'!A35:AZ1000");
   if (!rows[0]) return null;
 
   const headerRow = rows[0];
@@ -274,7 +274,7 @@ export async function getEERRCCForMonth(monthKey: string): Promise<{
 
 // Returns devengado time series for trend chart (reads header row + data row)
 export async function getDevengadosTimeSeries(): Promise<{ month: string; label: string; devengados: number }[]> {
-  const rows = await getSheet(process.env.SHEET_ID_EERR!, "'EERR CC'!A35:AZ688");
+  const rows = await getSheet(process.env.SHEET_ID_EERR!, "'EERR CC'!A35:AZ1000");
   if (rows.length < 2) return [];
 
   const headerRow = rows[0]; // row 35
@@ -300,7 +300,7 @@ export async function getClientesTrend(): Promise<{
   total: number; primerPrograma: number; renovados: number; downsell: number;
 }[]> {
   // Read header row (35) + rows 738–741 in one fetch
-  const rows = await getSheet(process.env.SHEET_ID_EERR!, "'EERR CC'!A35:AZ742");
+  const rows = await getSheet(process.env.SHEET_ID_EERR!, "'EERR CC'!A35:AZ1000");
   if (rows.length < 2) return [];
 
   const headerRow = rows[0]; // row 35
