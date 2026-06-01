@@ -366,7 +366,6 @@ export default async function SettingPage({
   const cierresADSTipoA = reunADS.filter((r) => matchTipo(r, "A") && isClosedStatus(r["Status"])).length;
 
   const funnelSteps = [
-    { label: "Leads Tipo A",  value: tiposALeads },
     { label: "Respondieron",  value: igaResp + igaPitch + igaPermiso + igaAgEnv + igaAgendado },
     { label: "Pitch",         value: igaPitch + igaPermiso + igaAgEnv + igaAgendado },
     { label: "Permiso",       value: igaPermiso + igaAgEnv + igaAgendado },
