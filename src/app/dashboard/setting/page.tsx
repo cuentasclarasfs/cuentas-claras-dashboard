@@ -7,6 +7,7 @@ import {
 import {
   AdsIgBarChart, FmaBarChart, TotalGeneralBarChart,
 } from "@/components/charts/ComparativaBarChart";
+import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SalesPeriodPicker } from "@/components/ui/SalesPeriodPicker";
 import { TiposPieCharts } from "@/components/ui/TiposPieCharts";
@@ -499,17 +500,27 @@ export default async function SettingPage({
         actions={<SalesPeriodPicker from={sp.from} to={sp.to} />}
       />
 
-      {/* ── 0. EMBUDO DE VENTAS — COMPARATIVA CANALES ── */}
+      {/* ── 0. MÉTRICAS TOTALES (colapsable) ── */}
       {comparativaARaw.length > 0 && (() => {
         const crFmt = (cc: number, ag: number) => ag > 0 ? `${((cc / ag) * 100).toFixed(2)}% CR` : "—";
+        const statLine = (ag: number, cc: number, inv: number) => (
+          <span className="text-[11px] text-slate-500">
+            Total {ag} ag. · {cc} cc · CR <span className="text-emerald-400">{ag > 0 ? ((cc/ag)*100).toFixed(2) : 0}%</span>
+            {inv > 0 && <> · Inv. <span className="text-brand-400">${Math.round(inv).toLocaleString()}</span></>}
+          </span>
+        );
         return (
-          <>
-            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">
-              Embudo de ventas — Leads Tipo A
-            </h2>
-
-            {/* 3 summary cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <CollapsibleSection title="Métricas Totales" variant="primary">
+            {/* Summary cards — order: Total, ADS IG, FMA */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+              {/* Total general */}
+              <div className="card">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Total general</p>
+                <p className="text-3xl font-bold text-white mb-1">{totAll.ag}</p>
+                <p className="text-xs text-slate-400">{totAll.cc} confirmados</p>
+                <p className="text-xs text-emerald-400 font-semibold mt-0.5">{crFmt(totAll.cc, totAll.ag)}</p>
+                {totAll.inv > 0 && <p className="text-xs text-brand-400 mt-1">Inv: ${Math.round(totAll.inv).toLocaleString()}</p>}
+              </div>
               {/* ADS IG */}
               <div className="card">
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">ADS IG</p>
@@ -520,7 +531,7 @@ export default async function SettingPage({
               </div>
               {/* FMA */}
               <div className="card">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">FMA — Outbound / Comentarios / Historias / Orgánico</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">FMA</p>
                 <p className="text-3xl font-bold text-white mb-1">{totFMA.ag}</p>
                 <div className="flex flex-wrap gap-x-3 text-[11px] text-slate-500 mt-0.5">
                   {[
@@ -535,55 +546,30 @@ export default async function SettingPage({
                 <p className="text-xs text-emerald-400 font-semibold mt-1">{crFmt(totFMA.cc, totFMA.ag)}</p>
                 {totFMA.inv > 0 && <p className="text-xs text-brand-400 mt-0.5">Inv: ${Math.round(totFMA.inv).toLocaleString()}</p>}
               </div>
-              {/* Total */}
-              <div className="card">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Total general — todos los canales</p>
-                <p className="text-3xl font-bold text-white mb-1">{totAll.ag}</p>
-                <p className="text-xs text-slate-400">{totAll.cc} confirmados</p>
-                <p className="text-xs text-emerald-400 font-semibold mt-0.5">{crFmt(totAll.cc, totAll.ag)}</p>
-                {totAll.inv > 0 && <p className="text-xs text-brand-400 mt-1">Inv: ${Math.round(totAll.inv).toLocaleString()}</p>}
-              </div>
             </div>
 
-            {/* Charts */}
-            <div className="space-y-4 mb-10">
-              {/* ADS IG */}
-              <div className="card">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-bold uppercase tracking-widest text-slate-500">ADS IG</p>
-                  <span className="text-[11px] text-slate-500">
-                    Total {totAdsIg.ag} ag. · {totAdsIg.cc} cc · CR <span className="text-emerald-400">{totAdsIg.ag > 0 ? ((totAdsIg.cc/totAdsIg.ag)*100).toFixed(2) : 0}%</span>
-                    {totAdsIg.inv > 0 && <> · Inv. <span className="text-brand-400">${Math.round(totAdsIg.inv).toLocaleString()}</span></>}
-                  </span>
-                </div>
-                <AdsIgBarChart data={adsIgChartData} />
-              </div>
+            {/* Charts — each colapsable, order: Total, ADS IG, FMA */}
+            <CollapsibleSection
+              title={<span className="flex-1 flex items-center justify-between">{<>Total General</>}{statLine(totAll.ag, totAll.cc, totAll.inv)}</span>}
+              variant="secondary"
+            >
+              <TotalGeneralBarChart data={totalChartData} />
+            </CollapsibleSection>
 
-              {/* FMA */}
-              <div className="card">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-bold uppercase tracking-widest text-slate-500">FMA — Outbound / Comentarios / Historias / Orgánico</p>
-                  <span className="text-[11px] text-slate-500">
-                    Total {totFMA.ag} ag. · {totFMA.cc} cc · CR <span className="text-emerald-400">{totFMA.ag > 0 ? ((totFMA.cc/totFMA.ag)*100).toFixed(2) : 0}%</span>
-                    {totFMA.inv > 0 && <> · Inv. <span className="text-brand-400">${Math.round(totFMA.inv).toLocaleString()}</span></>}
-                  </span>
-                </div>
-                <FmaBarChart data={fmaChartData} />
-              </div>
+            <CollapsibleSection
+              title={<span className="flex-1 flex items-center justify-between">{<>ADS IG</>}{statLine(totAdsIg.ag, totAdsIg.cc, totAdsIg.inv)}</span>}
+              variant="secondary"
+            >
+              <AdsIgBarChart data={adsIgChartData} />
+            </CollapsibleSection>
 
-              {/* Total general */}
-              <div className="card">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Total general — todos los canales</p>
-                  <span className="text-[11px] text-slate-500">
-                    Total {totAll.ag} ag. · {totAll.cc} cc · CR <span className="text-emerald-400">{totAll.ag > 0 ? ((totAll.cc/totAll.ag)*100).toFixed(2) : 0}%</span>
-                    {totAll.inv > 0 && <> · Inv. <span className="text-brand-400">${Math.round(totAll.inv).toLocaleString()}</span></>}
-                  </span>
-                </div>
-                <TotalGeneralBarChart data={totalChartData} />
-              </div>
-            </div>
-          </>
+            <CollapsibleSection
+              title={<span className="flex-1 flex items-center justify-between">{<>FMA — Outbound / Comentarios / Historias / Orgánico</>}{statLine(totFMA.ag, totFMA.cc, totFMA.inv)}</span>}
+              variant="secondary"
+            >
+              <FmaBarChart data={fmaChartData} />
+            </CollapsibleSection>
+          </CollapsibleSection>
         );
       })()}
 
