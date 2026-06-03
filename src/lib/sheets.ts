@@ -500,6 +500,63 @@ export async function getVentasReuniones(): Promise<Record<string, string>[]> {
   }));
 }
 
+// ── COMPARATIVA A (Métricas Setting) ─────────────────────────────────────────
+
+const COMP_MES_NUM: Record<string, number> = {
+  ENERO:1, FEBRERO:2, MARZO:3, ABRIL:4, MAYO:5, JUNIO:6,
+  JULIO:7, AGOSTO:8, SEPTIEMBRE:9, OCTUBRE:10, NOVIEMBRE:11, DICIEMBRE:12,
+};
+const COMP_MES_SHORT: Record<string, string> = {
+  ENERO:"Ene", FEBRERO:"Feb", MARZO:"Mar", ABRIL:"Abr", MAYO:"May", JUNIO:"Jun",
+  JULIO:"Jul", AGOSTO:"Ago", SEPTIEMBRE:"Sep", OCTUBRE:"Oct", NOVIEMBRE:"Nov", DICIEMBRE:"Dic",
+};
+
+export type ComparativaARow = {
+  mes: string; mesShort: string; monthKey: string;
+  adsIgGasto: number; adsIgAgendas: number; adsIgCierres: number;
+  fmaGasto: number;
+  outboundAgendas: number; outboundCierres: number;
+  historiasAgendas: number; historiasCierres: number;
+  comentariosAgendas: number; comentariosCierres: number;
+  organicoAgendas: number; organicoCierres: number;
+};
+
+export async function getComparativaA(): Promise<ComparativaARow[]> {
+  const rows = await getSheet(process.env.SHEET_ID_SETTING!, "Comparativa A!A1:AC40");
+  if (rows.length < 4) return [];
+  // Row 0=headers, 1=totales, 2=avg → data from index 3
+  const dataRows = rows.slice(3).filter((r) => (r[0] ?? "").trim());
+  if (!dataRows.length) return [];
+
+  const firstMes = dataRows[0][0]?.trim().toUpperCase() ?? "";
+  const firstNum = COMP_MES_NUM[firstMes] ?? 1;
+  let year = firstNum >= 9 ? new Date().getFullYear() - 1 : new Date().getFullYear();
+  let prevNum = 0;
+
+  return dataRows.map((row) => {
+    const mes = (row[0] ?? "").trim().toUpperCase();
+    const num = COMP_MES_NUM[mes] ?? 0;
+    if (num > 0 && prevNum > 0 && num < prevNum) year++;
+    if (num > 0) prevNum = num;
+    return {
+      mes, mesShort: COMP_MES_SHORT[mes] ?? mes,
+      monthKey: `${year}-${String(num).padStart(2, "0")}`,
+      adsIgGasto:          parseUSD(row[1]  ?? ""),  // B
+      adsIgAgendas:        parseInt(row[2]  ?? "") || 0, // C
+      adsIgCierres:        parseInt(row[3]  ?? "") || 0, // D
+      fmaGasto:            parseUSD(row[7]  ?? ""),  // H (= total FMA $)
+      outboundAgendas:     parseInt(row[8]  ?? "") || 0, // I
+      outboundCierres:     parseInt(row[9]  ?? "") || 0, // J
+      historiasAgendas:    parseInt(row[14] ?? "") || 0, // O
+      historiasCierres:    parseInt(row[15] ?? "") || 0, // P
+      comentariosAgendas:  parseInt(row[20] ?? "") || 0, // U
+      comentariosCierres:  parseInt(row[21] ?? "") || 0, // V
+      organicoAgendas:     parseInt(row[26] ?? "") || 0, // AA
+      organicoCierres:     parseInt(row[27] ?? "") || 0, // AB
+    };
+  });
+}
+
 // Status values (col R) that count as a closed deal
 export function isClosedStatus(status: string): boolean {
   const s = status.toLowerCase();

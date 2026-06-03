@@ -2,7 +2,11 @@ import {
   getSettingMsgIG, getSettingMsgIGA, getSettingTiposLeads, getSettingAnalisisFMA,
   getVentasReuniones, isClosedStatus, parseUSD,
   getMarketingVSL, getMarketingFMA, getContenidoPosteos, getContenidoHistorias,
+  getComparativaA,
 } from "@/lib/sheets";
+import {
+  AdsIgBarChart, FmaBarChart, TotalGeneralBarChart,
+} from "@/components/charts/ComparativaBarChart";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SalesPeriodPicker } from "@/components/ui/SalesPeriodPicker";
 import { TiposPieCharts } from "@/components/ui/TiposPieCharts";
@@ -111,7 +115,7 @@ export default async function SettingPage({
   const range = sp.from && sp.to ? { from: sp.from, to: sp.to } : defaultRange();
   const prev  = prevRange(range.from, range.to);
 
-  const [msgIGRaw, msgIGARaw, tiposLeadsRaw, analisisFMARaw, reunionesRaw, vslRaw, fmaRawData] = await Promise.all([
+  const [msgIGRaw, msgIGARaw, tiposLeadsRaw, analisisFMARaw, reunionesRaw, vslRaw, fmaRawData, comparativaARaw] = await Promise.all([
     getSettingMsgIG(),
     getSettingMsgIGA(),
     getSettingTiposLeads(),
@@ -119,6 +123,7 @@ export default async function SettingPage({
     getVentasReuniones(),
     getMarketingVSL(),
     getMarketingFMA(),
+    getComparativaA(),
   ]);
 
   // Contenido sheets (may not be configured)
@@ -424,6 +429,64 @@ export default async function SettingPage({
     cierres: reunHist.filter((r) => matchTipo(r, tipo) && isClosedStatus(r["Status"])).length,
   })).filter((t) => t.agendas > 0 || t.cierres > 0);
 
+  // ── COMPARATIVA A — chart data ────────────────────────────────────────────
+
+  // Tipo A leads aggregated by month key from tiposLeadsRaw
+  const tipoAByMonthKey = new Map<string, number>();
+  for (const r of tiposLeadsRaw) {
+    const fecha = (r["Fecha"] ?? "").trim().split("/");
+    if (fecha.length < 2) continue;
+    const m = parseInt(fecha[1]);
+    let y = fecha.length >= 3 ? parseInt(fecha[2]) : new Date().getFullYear();
+    if (y < 100) y += 2000;
+    const key = `${y}-${String(m).padStart(2, "0")}`;
+    tipoAByMonthKey.set(key, (tipoAByMonthKey.get(key) ?? 0) + (parseInt(r["Tipo A"] ?? "") || 0));
+  }
+
+  const adsIgChartData = comparativaARaw.map((r) => ({
+    label: r.mesShort,
+    inversion: r.adsIgGasto,
+    invScaled: r.adsIgGasto > 0 ? r.adsIgGasto / 100 : 0,
+    tipoA: tipoAByMonthKey.get(r.monthKey) ?? 0,
+    agendas: r.adsIgAgendas,
+    cierres: r.adsIgCierres,
+  }));
+
+  const fmaChartData = comparativaARaw.map((r) => {
+    const totalAg = r.outboundAgendas + r.historiasAgendas + r.comentariosAgendas + r.organicoAgendas;
+    const totalCc = r.outboundCierres + r.historiasCierres + r.comentariosCierres + r.organicoCierres;
+    return {
+      label: r.mesShort,
+      inversion: r.fmaGasto,
+      invScaled: r.fmaGasto > 0 ? r.fmaGasto / 100 : 0,
+      outboundAg: r.outboundAgendas, outboundCc: r.outboundCierres,
+      historiasAg: r.historiasAgendas, historiasCc: r.historiasCierres,
+      comentariosAg: r.comentariosAgendas, comentariosCc: r.comentariosCierres,
+      organicoAg: r.organicoAgendas, organicoCc: r.organicoCierres,
+      totalAg, totalCc,
+    };
+  });
+
+  const totalChartData = comparativaARaw.map((r) => {
+    const totalAg = r.adsIgAgendas + r.outboundAgendas + r.historiasAgendas + r.comentariosAgendas + r.organicoAgendas;
+    const totalCc = r.adsIgCierres + r.outboundCierres + r.historiasCierres + r.comentariosCierres + r.organicoCierres;
+    const totalInv = r.adsIgGasto + r.fmaGasto;
+    return { label: r.mesShort, inversion: totalInv, invScaled: totalInv > 0 ? totalInv / 100 : 0, agendas: totalAg, cierres: totalCc };
+  });
+
+  // Summary totals for the 3 cards
+  const totAdsIg = comparativaARaw.reduce((acc, r) => ({
+    ag: acc.ag + r.adsIgAgendas, cc: acc.cc + r.adsIgCierres, inv: acc.inv + r.adsIgGasto,
+  }), { ag: 0, cc: 0, inv: 0 });
+  const totFMA = comparativaARaw.reduce((acc, r) => ({
+    ag: acc.ag + r.outboundAgendas + r.historiasAgendas + r.comentariosAgendas + r.organicoAgendas,
+    cc: acc.cc + r.outboundCierres + r.historiasCierres + r.comentariosCierres + r.organicoCierres,
+    inv: acc.inv + r.fmaGasto,
+  }), { ag: 0, cc: 0, inv: 0 });
+  const totAll = {
+    ag: totAdsIg.ag + totFMA.ag, cc: totAdsIg.cc + totFMA.cc, inv: totAdsIg.inv + totFMA.inv,
+  };
+
   const fmtUSD = (n: number | null) =>
     n != null && n > 0 ? `$${Math.round(n).toLocaleString()}` : "—";
 
@@ -435,6 +498,94 @@ export default async function SettingPage({
         description="Generación de leads · Canales · Conversión"
         actions={<SalesPeriodPicker from={sp.from} to={sp.to} />}
       />
+
+      {/* ── 0. EMBUDO DE VENTAS — COMPARATIVA CANALES ── */}
+      {comparativaARaw.length > 0 && (() => {
+        const crFmt = (cc: number, ag: number) => ag > 0 ? `${((cc / ag) * 100).toFixed(2)}% CR` : "—";
+        return (
+          <>
+            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">
+              Embudo de ventas — Leads Tipo A
+            </h2>
+
+            {/* 3 summary cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              {/* ADS IG */}
+              <div className="card">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">ADS IG</p>
+                <p className="text-3xl font-bold text-white mb-1">{totAdsIg.ag}</p>
+                <p className="text-xs text-slate-400">{totAdsIg.cc} confirmados</p>
+                <p className="text-xs text-emerald-400 font-semibold mt-0.5">{crFmt(totAdsIg.cc, totAdsIg.ag)}</p>
+                {totAdsIg.inv > 0 && <p className="text-xs text-brand-400 mt-1">Inv: ${Math.round(totAdsIg.inv).toLocaleString()}</p>}
+              </div>
+              {/* FMA */}
+              <div className="card">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">FMA — Outbound / Comentarios / Historias / Orgánico</p>
+                <p className="text-3xl font-bold text-white mb-1">{totFMA.ag}</p>
+                <div className="flex flex-wrap gap-x-3 text-[11px] text-slate-500 mt-0.5">
+                  {[
+                    { label: "Outbound",    ag: comparativaARaw.reduce((s,r)=>s+r.outboundAgendas,0),    cc: comparativaARaw.reduce((s,r)=>s+r.outboundCierres,0) },
+                    { label: "Historias",   ag: comparativaARaw.reduce((s,r)=>s+r.historiasAgendas,0),   cc: comparativaARaw.reduce((s,r)=>s+r.historiasCierres,0) },
+                    { label: "Comentarios", ag: comparativaARaw.reduce((s,r)=>s+r.comentariosAgendas,0), cc: comparativaARaw.reduce((s,r)=>s+r.comentariosCierres,0) },
+                    { label: "Orgánico",    ag: comparativaARaw.reduce((s,r)=>s+r.organicoAgendas,0),    cc: comparativaARaw.reduce((s,r)=>s+r.organicoCierres,0) },
+                  ].map((s) => (
+                    <span key={s.label}>{s.label} {s.ag} ag. · {s.cc} cc</span>
+                  ))}
+                </div>
+                <p className="text-xs text-emerald-400 font-semibold mt-1">{crFmt(totFMA.cc, totFMA.ag)}</p>
+                {totFMA.inv > 0 && <p className="text-xs text-brand-400 mt-0.5">Inv: ${Math.round(totFMA.inv).toLocaleString()}</p>}
+              </div>
+              {/* Total */}
+              <div className="card">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Total general — todos los canales</p>
+                <p className="text-3xl font-bold text-white mb-1">{totAll.ag}</p>
+                <p className="text-xs text-slate-400">{totAll.cc} confirmados</p>
+                <p className="text-xs text-emerald-400 font-semibold mt-0.5">{crFmt(totAll.cc, totAll.ag)}</p>
+                {totAll.inv > 0 && <p className="text-xs text-brand-400 mt-1">Inv: ${Math.round(totAll.inv).toLocaleString()}</p>}
+              </div>
+            </div>
+
+            {/* Charts */}
+            <div className="space-y-4 mb-10">
+              {/* ADS IG */}
+              <div className="card">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-500">ADS IG</p>
+                  <span className="text-[11px] text-slate-500">
+                    Total {totAdsIg.ag} ag. · {totAdsIg.cc} cc · CR <span className="text-emerald-400">{totAdsIg.ag > 0 ? ((totAdsIg.cc/totAdsIg.ag)*100).toFixed(2) : 0}%</span>
+                    {totAdsIg.inv > 0 && <> · Inv. <span className="text-brand-400">${Math.round(totAdsIg.inv).toLocaleString()}</span></>}
+                  </span>
+                </div>
+                <AdsIgBarChart data={adsIgChartData} />
+              </div>
+
+              {/* FMA */}
+              <div className="card">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-500">FMA — Outbound / Comentarios / Historias / Orgánico</p>
+                  <span className="text-[11px] text-slate-500">
+                    Total {totFMA.ag} ag. · {totFMA.cc} cc · CR <span className="text-emerald-400">{totFMA.ag > 0 ? ((totFMA.cc/totFMA.ag)*100).toFixed(2) : 0}%</span>
+                    {totFMA.inv > 0 && <> · Inv. <span className="text-brand-400">${Math.round(totFMA.inv).toLocaleString()}</span></>}
+                  </span>
+                </div>
+                <FmaBarChart data={fmaChartData} />
+              </div>
+
+              {/* Total general */}
+              <div className="card">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Total general — todos los canales</p>
+                  <span className="text-[11px] text-slate-500">
+                    Total {totAll.ag} ag. · {totAll.cc} cc · CR <span className="text-emerald-400">{totAll.ag > 0 ? ((totAll.cc/totAll.ag)*100).toFixed(2) : 0}%</span>
+                    {totAll.inv > 0 && <> · Inv. <span className="text-brand-400">${Math.round(totAll.inv).toLocaleString()}</span></>}
+                  </span>
+                </div>
+                <TotalGeneralBarChart data={totalChartData} />
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* ── 1. GENERACIÓN DE AGENDAS ── */}
       <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Generación de Agendas</h2>
