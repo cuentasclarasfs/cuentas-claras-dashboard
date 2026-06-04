@@ -35,22 +35,60 @@ function StackTopLabel({ x, y, width, value }: any) {
   );
 }
 
-// Single-bar tooltip: only shows the hovered bar, no zeros
-function makeSingleTooltip(activeKey: string | null, invKey: string, invRaw: Map<string, number>) {
+// Enhanced single-bar tooltip: shows value + cost + % of previous metric
+function makeSingleTooltip(
+  activeKey: string | null,
+  invKey: string,
+  invRaw: Map<string, number>,
+  prevMap: Record<string, string> = {},
+  showCostFor: Set<string> = new Set(),
+) {
   return function CustomTooltip({ active, payload, label }: any) {
-    if (!active || !payload || !activeKey) return null;
+    if (!active || !payload?.length || !activeKey) return null;
     const item = payload.find((p: any) => p.dataKey === activeKey);
-    if (!item || !item.value) return null;
-    // For investment bar: show actual $ not scaled value
-    const displayVal = item.dataKey === invKey
-      ? `$${Math.round((invRaw.get(label) ?? item.value * 100)).toLocaleString()}`
-      : item.value;
+    if (!item?.value) return null;
+
+    // Investment bar: just show $ amount
+    if (activeKey === invKey) {
+      const inv = invRaw.get(label) ?? 0;
+      if (!inv) return null;
+      return (
+        <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, padding: "8px 12px", fontSize: 12 }}>
+          <p style={{ color: "#64748b", marginBottom: 4, fontSize: 11 }}>{label}</p>
+          <p style={{ color: "#fbbf24", fontWeight: 600 }}>{item.name}: ${Math.round(inv).toLocaleString()}</p>
+        </div>
+      );
+    }
+
+    const value = item.value as number;
+    const investment = invRaw.get(label) ?? 0;
+
+    // Cost = investment / value
+    const cost = showCostFor.has(activeKey) && investment > 0 && value > 0
+      ? investment / value : null;
+
+    // % of previous metric
+    const prevKey = prevMap[activeKey];
+    const prevItem = prevKey ? payload.find((p: any) => p.dataKey === prevKey) : null;
+    const prevVal = prevItem?.value as number | undefined;
+    const pct = prevVal && prevVal > 0 ? (value / prevVal) * 100 : null;
+
     return (
-      <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, padding: "8px 12px", fontSize: 12 }}>
-        <p style={{ color: "#94a3b8", marginBottom: 4 }}>{label}</p>
-        <p style={{ color: item.color || "#e2e8f0", fontWeight: 600 }}>
-          {item.name}: {displayVal}
+      <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, padding: "8px 12px", fontSize: 12, minWidth: 170 }}>
+        <p style={{ color: "#64748b", marginBottom: 4, fontSize: 11 }}>{label}</p>
+        <p style={{ color: item.color || "#e2e8f0", fontWeight: 600, marginBottom: (cost || pct) ? 5 : 0 }}>
+          {item.name}: {value}
         </p>
+        {pct !== null && (
+          <p style={{ color: "#94a3b8", fontSize: 11 }}>
+            📊 {pct.toFixed(1)}% de {prevItem?.name ?? prevKey}
+          </p>
+        )}
+        {cost !== null && (
+          <p style={{ color: "#fbbf24", fontSize: 11 }}>
+            💰 Costo: ${Math.round(cost).toLocaleString()}
+          </p>
+        )}
       </div>
     );
   };
@@ -69,6 +107,9 @@ export type AdsIgPoint = {
   cierres: number;
 };
 
+const ADS_PREV_MAP: Record<string, string> = { agendas: "tipoA", cierres: "agendas" };
+const ADS_COST_KEYS = new Set(["tipoA", "agendas", "cierres"]);
+
 export function AdsIgBarChart({ data }: { data: AdsIgPoint[] }) {
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const invMap = new Map(data.map((d) => [d.label, d.inversion]));
@@ -80,7 +121,7 @@ export function AdsIgBarChart({ data }: { data: AdsIgPoint[] }) {
         <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
         <XAxis dataKey="label" tick={AXIS_STYLE} axisLine={false} tickLine={false} />
         <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} width={28} />
-        <Tooltip content={makeSingleTooltip(activeKey, "invScaled", invMap)} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+        <Tooltip content={makeSingleTooltip(activeKey, "invScaled", invMap, ADS_PREV_MAP, ADS_COST_KEYS)} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
         <Legend wrapperStyle={{ fontSize: 11, color: "#64748b", paddingTop: 6 }} />
 
         <Bar dataKey="invScaled" name="Inversión" fill="#92400e" radius={[3,3,0,0]}
@@ -128,6 +169,11 @@ const FMA_BARS = [
   { key: "organicoCc",    name: "Orgánico cc.",    color: "#065F46", stack: "cc" },
 ] as const;
 
+const FMA_PREV_MAP: Record<string, string> = {
+  outboundCc: "outboundAg", historiasCc: "historiasAg",
+  comentariosCc: "comentariosAg", organicoCc: "organicoAg",
+};
+
 export function FmaBarChart({ data }: { data: FmaPoint[] }) {
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const invMap = new Map(data.map((d) => [d.label, d.inversion]));
@@ -139,7 +185,7 @@ export function FmaBarChart({ data }: { data: FmaPoint[] }) {
         <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
         <XAxis dataKey="label" tick={AXIS_STYLE} axisLine={false} tickLine={false} />
         <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} width={28} />
-        <Tooltip content={makeSingleTooltip(activeKey, "invScaled", invMap)} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+        <Tooltip content={makeSingleTooltip(activeKey, "invScaled", invMap, FMA_PREV_MAP)} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
         <Legend wrapperStyle={{ fontSize: 10, color: "#64748b", paddingTop: 6 }} />
 
         <Bar dataKey="invScaled" name="Inversión FMA" fill="#92400e" radius={[3,3,0,0]}
@@ -170,6 +216,9 @@ export type TotalGeneralPoint = {
   cierres: number;
 };
 
+const TOT_PREV_MAP: Record<string, string> = { cierres: "agendas" };
+const TOT_COST_KEYS = new Set(["agendas", "cierres"]);
+
 export function TotalGeneralBarChart({ data }: { data: TotalGeneralPoint[] }) {
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const invMap = new Map(data.map((d) => [d.label, d.inversion]));
@@ -181,7 +230,7 @@ export function TotalGeneralBarChart({ data }: { data: TotalGeneralPoint[] }) {
         <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
         <XAxis dataKey="label" tick={AXIS_STYLE} axisLine={false} tickLine={false} />
         <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} width={28} />
-        <Tooltip content={makeSingleTooltip(activeKey, "invScaled", invMap)} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+        <Tooltip content={makeSingleTooltip(activeKey, "invScaled", invMap, TOT_PREV_MAP, TOT_COST_KEYS)} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
         <Legend wrapperStyle={{ fontSize: 11, color: "#64748b", paddingTop: 6 }} />
 
         <Bar dataKey="invScaled" name="Inversión" fill="#92400e" radius={[3,3,0,0]}
