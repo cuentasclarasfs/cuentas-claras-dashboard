@@ -21,7 +21,7 @@ function InvLabel({ x, y, width, value }: any) {
   if (!value) return null;
   return (
     <text x={x + width / 2} y={y - 4} textAnchor="middle" fontSize={9} fill="#fbbf24">
-      ${Math.round(value).toLocaleString()}
+      ${Math.round(value * 100).toLocaleString()}
     </text>
   );
 }
