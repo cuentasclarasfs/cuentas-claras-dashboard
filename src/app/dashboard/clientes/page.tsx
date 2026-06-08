@@ -213,6 +213,25 @@ export default async function ClientesPage({
 
   const fmtVal = (v: number | null) => v !== null ? v.toFixed(1) : "—";
 
+  // ── Permanencia: excluir asesores que no reflejan el sistema actual ──
+  const EXCLUIR_PERMANENCIA = new Set(["Fran Simon"]);
+  const estadisticasFiltradas = estadisticasRaw.filter((a) => !EXCLUIR_PERMANENCIA.has(a.nombre));
+
+  // Recalcular promedios globales ponderados por clientes (excluyendo los mismos asesores)
+  const totalClientesFiltrados = estadisticasFiltradas.reduce((s, a) => s + a.clientesTotales, 0);
+  const globalMesesPromedio = totalClientesFiltrados > 0
+    ? estadisticasFiltradas
+        .filter((a) => a.mesesPromedio !== null && a.clientesTotales > 0)
+        .reduce((s, a) => s + a.mesesPromedio! * a.clientesTotales, 0) / totalClientesFiltrados
+    : opsMetrics.mesesPromedio;
+
+  const totalRenovadosFiltrados = estadisticasFiltradas.reduce((s, a) => s + (a.clientesRenovados ?? 0), 0);
+  const globalMesesRenovacion = totalRenovadosFiltrados > 0
+    ? estadisticasFiltradas
+        .filter((a) => a.mesesExtra !== null && (a.clientesRenovados ?? 0) > 0)
+        .reduce((s, a) => s + a.mesesExtra! * (a.clientesRenovados ?? 0), 0) / totalRenovadosFiltrados
+    : opsMetrics.mesesRenovacion;
+
   return (
     <div>
       <PageHeader
@@ -225,9 +244,27 @@ export default async function ClientesPage({
       <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Clientes Activos</h2>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <KPICard label="Total activos" value={totalActivos ?? "—"} icon={Users} color="blue" />
-        <KPICard label="1er Programa" value={primerProg ?? "—"} icon={Users} color="green" />
-        <KPICard label="Renovados" value={renovados ?? "—"} icon={TrendingUp} color="purple" />
-        <KPICard label="Downsell" value={downsell ?? "—"} icon={AlertCircle} color="amber" />
+        <KPICard
+          label="1er Programa"
+          value={primerProg ?? "—"}
+          sub={primerProg !== null && totalActivos ? `${((primerProg / totalActivos) * 100).toFixed(0)}% del total` : undefined}
+          icon={Users}
+          color="green"
+        />
+        <KPICard
+          label="Renovados"
+          value={renovados ?? "—"}
+          sub={renovados !== null && totalActivos ? `${((renovados / totalActivos) * 100).toFixed(0)}% del total` : undefined}
+          icon={TrendingUp}
+          color="purple"
+        />
+        <KPICard
+          label="Downsell"
+          value={downsell ?? "—"}
+          sub={downsell !== null && totalActivos ? `${((downsell / totalActivos) * 100).toFixed(0)}% del total` : undefined}
+          icon={AlertCircle}
+          color="amber"
+        />
       </div>
       <div className="card mb-10">
         <h3 className="text-sm font-semibold text-slate-300 mb-4">Evolución de clientes — últimos 12 meses</h3>
@@ -342,24 +379,24 @@ export default async function ClientesPage({
       </div>
 
       {/* ── PERMANENCIA DE CLIENTES ── */}
-      {(opsMetrics.mesesPromedio !== null || opsMetrics.porAsesor.length > 0) && (
+      {(globalMesesPromedio !== null || estadisticasFiltradas.length > 0) && (
         <>
           <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Permanencia de Clientes</h2>
           <div className="card mb-8">
             {/* Global KPIs */}
-            {(opsMetrics.mesesPromedio !== null || opsMetrics.mesesRenovacion !== null) && (
+            {(globalMesesPromedio !== null || globalMesesRenovacion !== null) && (
               <div className="grid grid-cols-2 gap-4 mb-6 pb-5 border-b border-surface-700/40">
                 <div className="text-center">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Meses promedio (1er programa)</p>
                   <p className="text-3xl font-bold text-white tabular-nums">
-                    {opsMetrics.mesesPromedio !== null ? opsMetrics.mesesPromedio.toFixed(1) : "—"}
+                    {globalMesesPromedio !== null ? globalMesesPromedio.toFixed(1) : "—"}
                   </p>
                   <p className="text-xs text-slate-600 mt-1">meses activos en promedio</p>
                 </div>
                 <div className="text-center">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Meses extra si renuevan</p>
                   <p className="text-3xl font-bold text-emerald-400 tabular-nums">
-                    {opsMetrics.mesesRenovacion !== null ? opsMetrics.mesesRenovacion.toFixed(1) : "—"}
+                    {globalMesesRenovacion !== null ? globalMesesRenovacion.toFixed(1) : "—"}
                   </p>
                   <p className="text-xs text-slate-600 mt-1">meses adicionales en renovación</p>
                 </div>
@@ -367,7 +404,7 @@ export default async function ClientesPage({
             )}
 
             {/* Per-advisor table */}
-            {estadisticasRaw.length > 0 && (
+            {estadisticasFiltradas.length > 0 && (
               <>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">Por asesor</p>
                 <div className="overflow-x-auto">
@@ -380,7 +417,7 @@ export default async function ClientesPage({
                       </tr>
                     </thead>
                     <tbody>
-                      {estadisticasRaw
+                      {estadisticasFiltradas
                         .sort((a, b) => b.clientesTotales - a.clientesTotales)
                         .map((a) => (
                           <tr key={a.nombre} className="border-b border-surface-800/50 hover:bg-surface-800/30">
@@ -390,11 +427,11 @@ export default async function ClientesPage({
                               {a.mesesPromedio !== null ? (
                                 <span className="flex items-center gap-2">
                                   <span>{a.mesesPromedio.toFixed(1)}</span>
-                                  {opsMetrics.mesesPromedio !== null && (
+                                  {globalMesesPromedio !== null && (
                                     <span className={`text-[10px] font-normal ${
-                                      a.mesesPromedio >= opsMetrics.mesesPromedio ? "text-emerald-400" : "text-rose-400"
+                                      a.mesesPromedio >= globalMesesPromedio ? "text-emerald-400" : "text-rose-400"
                                     }`}>
-                                      {a.mesesPromedio >= opsMetrics.mesesPromedio ? "▲" : "▼"} prom global
+                                      {a.mesesPromedio >= globalMesesPromedio ? "▲" : "▼"} prom global
                                     </span>
                                   )}
                                 </span>
