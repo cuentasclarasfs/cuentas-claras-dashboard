@@ -1,6 +1,6 @@
 import {
   getCashflowForMonth, getEERRCCForMonth, getAhorroTimeSeries,
-  formatARS, currentMonthKey,
+  getCashflowIngresosCategoria, formatARS, currentMonthKey,
 } from "@/lib/sheets";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { KPICard } from "@/components/ui/KPICard";
@@ -21,10 +21,11 @@ export default async function FinanzasPage({
   const sp = await searchParams;
   const selectedMonth = sp.month ?? currentMonthKey();
 
-  const [cashflow, eerrcc, ahorroSeries] = await Promise.all([
+  const [cashflow, eerrcc, ahorroSeries, ingresosCatRaw] = await Promise.all([
     getCashflowForMonth(selectedMonth),
     getEERRCCForMonth(selectedMonth),
     getAhorroTimeSeries(),
+    getCashflowIngresosCategoria(selectedMonth),
   ]);
 
   const [selYear, selMonth] = selectedMonth.split("-").map(Number);
@@ -40,11 +41,8 @@ export default async function FinanzasPage({
   const renovadosCC = cashflow?.renovadosCC ?? 0;
   const margenCC = cashCollected > 0 ? (profitNeto / cashCollected) * 100 : 0;
 
-  // Ingresos por categoría
-  const ingresosCat = [
-    { label: "1er Programa", value: primerProgramaCC },
-    { label: "Renovados", value: renovadosCC },
-  ].filter((c) => c.value > 0);
+  // Ingresos por categoría (desde Cashflow, col B, filtrado por > 0)
+  const ingresosCat = ingresosCatRaw;
 
   // Económico
   const ingresosDevengados = eerrcc?.ingresosDevengados ?? null;
@@ -117,22 +115,27 @@ export default async function FinanzasPage({
         <div className="card">
           <h3 className="text-sm font-semibold text-slate-300 mb-5">Ingresos por categoría — {mesLabel}</h3>
           {ingresosCat.length > 0 ? (
-            <div className="space-y-4">
-              {ingresosCat.map(({ label, value }) => (
-                <div key={label} className="flex items-center gap-4">
-                  <span className="text-sm text-slate-400 w-28 flex-shrink-0">{label}</span>
-                  <div className="flex-1 bg-surface-800 rounded-full h-3">
-                    <div
-                      className="bg-brand-500 h-3 rounded-full"
-                      style={{ width: `${cashCollected > 0 ? (value / cashCollected) * 100 : 0}%` }}
-                    />
+            <div className="space-y-3">
+              {ingresosCat.map(({ label, value }) => {
+                const pct = cashCollected > 0 ? (value / cashCollected) * 100 : 0;
+                return (
+                  <div key={label}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-slate-400">{label}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm text-slate-300 tabular-nums font-medium">{fmt(value)}</span>
+                        <span className="text-xs text-slate-500 w-9 text-right">{pct.toFixed(0)}%</span>
+                      </div>
+                    </div>
+                    <div className="w-full bg-surface-800 rounded-full h-2">
+                      <div
+                        className="bg-brand-500 h-2 rounded-full"
+                        style={{ width: `${Math.min(pct, 100)}%` }}
+                      />
+                    </div>
                   </div>
-                  <span className="text-sm text-slate-300 w-28 text-right tabular-nums font-medium">{fmt(value)}</span>
-                  <span className="text-xs text-slate-500 w-10 text-right">
-                    {cashCollected > 0 ? `${((value / cashCollected) * 100).toFixed(0)}%` : "—"}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <p className="text-sm text-slate-500">Sin datos este mes</p>
@@ -157,7 +160,13 @@ export default async function FinanzasPage({
           icon={TrendingUp}
           color={resultadoBruto !== null && resultadoBruto >= 0 ? "green" : "rose" as "green"}
         />
-        <KPICard label="Gastos Fijos" value={fmt(gastosFijos)} icon={TrendingDown} color="amber" />
+        <KPICard
+          label="Gastos Fijos"
+          value={fmt(gastosFijos)}
+          sub={ingresosDevengados && gastosFijos ? `${((gastosFijos / ingresosDevengados) * 100).toFixed(1)}% s/ devengados` : undefined}
+          icon={TrendingDown}
+          color="amber"
+        />
         <KPICard
           label="Resultado Neto"
           value={fmt(resultadoNeto)}

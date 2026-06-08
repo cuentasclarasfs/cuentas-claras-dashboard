@@ -119,6 +119,42 @@ export async function getCashflowForMonth(monthKey: string): Promise<{
   return { cashCollected, totalGastos, cashflowCC, totalGastosPersonales, primerProgramaCC, renovadosCC, ahorroFinal };
 }
 
+// Returns income breakdown by category for a given month (from Cashflow sheet col B)
+const INGRESOS_CATEGORIAS = [
+  "Accountant EEUU",
+  "Cuentas Claras (Primer programa)",
+  "Cuentas Claras (Ventas del mes)",
+  "Cuentas Claras (Cobro cuotas)",
+  "Cuentas Claras (Renovados)",
+  "Comisiones ventas",
+  "Intereses",
+  "Otros",
+];
+
+export async function getCashflowIngresosCategoria(
+  monthKey: string
+): Promise<{ label: string; value: number }[]> {
+  const [year] = monthKey.split("-").map(Number);
+  const sheetYear = year === 2024 ? "24" : year === 2025 ? "25" : year === 2026 ? "26" : null;
+  if (!sheetYear) return [];
+
+  const rows = await getCashflow(sheetYear);
+  if (rows.length < 2) return [];
+
+  const headerRow = rows[1]; // row 2 has month names
+  const colIndex = headerRow.findIndex((v) => spanishHeaderToMonthKey(v ?? "") === monthKey);
+  if (colIndex === -1) return [];
+
+  const result: { label: string; value: number }[] = [];
+  for (const cat of INGRESOS_CATEGORIAS) {
+    const row = rows.find((r) => (r[1] ?? "").trim().toLowerCase() === cat.toLowerCase());
+    if (!row) continue;
+    const val = parseNumES(row[colIndex] ?? "");
+    if (val > 0) result.push({ label: cat, value: val });
+  }
+  return result;
+}
+
 // Returns monthly "Ahorro final" time series from Cashflow sheets
 export async function getAhorroTimeSeries(): Promise<{ month: string; label: string; ahorro: number }[]> {
   const [rows24, rows25, rows26] = await Promise.all([getCashflow("24"), getCashflow("25"), getCashflow("26")]);
