@@ -80,6 +80,13 @@ const FMA_CANALES = ["Outbound", "Organico", "Comentarios", "Link Perfil", "VSL 
 const isFMA = (canal: string) => FMA_CANALES.some((c) => canal.toLowerCase().includes(c.toLowerCase()));
 const CLOSERS = ["Agus", "Foli", "Santi", "Pit", "Joan"];
 
+function mediana(vals: number[]): number | null {
+  if (!vals.length) return null;
+  const sorted = [...vals].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
 function closingStats(rows: Record<string, string>[]) {
   const total        = rows.length;
   const noPres       = rows.filter((r) => r["Status"].toLowerCase().includes("no presentado")).length;
@@ -96,7 +103,10 @@ function closingStats(rows: Record<string, string>[]) {
   const aovVals      = rows.map((r) => parseNumES(r["AOV Trato cerrado"] ?? "")).filter((v) => v > 0);
   const aovPromedio  = aovVals.length > 0 ? aovVals.reduce((s, v) => s + v, 0) / aovVals.length : 0;
   const aovTotal     = aovVals.reduce((s, v) => s + v, 0); // suma de todos los AOV con valor
-  return { total, noPres, cancelados, noShow, sena, efectivas, ccSpa, downsell, facturacion, cashLlamada, aovPromedio, aovTotal };
+  // Días hasta agenda — mediana solo de los que cerraron
+  const diasVals     = cerradosRows.map((r) => parseFloat(r["Dias hasta agenda"] ?? "")).filter((v) => isFinite(v) && v >= 0);
+  const diasMediana  = mediana(diasVals);
+  return { total, noPres, cancelados, noShow, sena, efectivas, ccSpa, downsell, facturacion, cashLlamada, aovPromedio, aovTotal, diasMediana };
 }
 
 // ── page ──────────────────────────────────────────────────────────────────────
@@ -318,7 +328,7 @@ export default async function VentasPage({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-700">
-                {["Canal","$ Inv.","Llamadas","$ Reu.","N.Pres.","Cancel.","No show","NS+Can%","Efect.","C.Efec.","CC/SPA","CR%","CAC","CAC Ant.","AOV"].map((h) => (
+                {["Canal","$ Inv.","Llamadas","$ Reu.","N.Pres.","Cancel.","No show","NS+Can%","Efect.","C.Efec.","CC/SPA","CR%","CAC","CAC Ant.","AOV","Días ag."].map((h) => (
                   <th key={h} className="px-3 py-2 text-center text-xs font-semibold text-slate-500 uppercase whitespace-nowrap first:text-left">{h}</th>
                 ))}
               </tr>
@@ -357,6 +367,10 @@ export default async function VentasPage({
                     {/* AOV */}
                     <td className="px-3 py-3 text-center text-sky-300 tabular-nums">
                       {c.aovPromedio > 0 ? formatARS(c.aovPromedio) : "—"}
+                    </td>
+                    {/* Días ag. */}
+                    <td className="px-3 py-3 text-center text-violet-300 tabular-nums">
+                      {c.diasMediana !== null ? `${c.diasMediana.toFixed(0)}d` : "—"}
                     </td>
                   </tr>
                 );
@@ -451,6 +465,17 @@ export default async function VentasPage({
                           </td>
                         );
                       })()}
+                      {/* Días ag. total */}
+                      {(() => {
+                        const cerradosTot = reuniones.filter((r) => isClosedStatus(r["Status"]) || r["Status"].toLowerCase().includes("downsell"));
+                        const diasTot = cerradosTot.map((r) => parseFloat(r["Dias hasta agenda"] ?? "")).filter((v) => isFinite(v) && v >= 0);
+                        const med = mediana(diasTot);
+                        return (
+                          <td className="px-3 py-3 text-center text-violet-300 tabular-nums font-semibold">
+                            {med !== null ? `${med.toFixed(0)}d` : "—"}
+                          </td>
+                        );
+                      })()}
                     </tr>
 
                     {/* ── Período anterior comparison row ── */}
@@ -507,6 +532,8 @@ export default async function VentasPage({
                       {/* CAC Ant. column — blank in comparison row (already shown above) */}
                       <td />
                       {/* AOV — blank in comparison row */}
+                      <td />
+                      {/* Días ag. — blank in comparison row */}
                       <td />
                     </tr>
                   </>
