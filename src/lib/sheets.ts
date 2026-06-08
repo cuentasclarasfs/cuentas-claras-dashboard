@@ -278,7 +278,7 @@ export async function getDevengadosTimeSeries(): Promise<{ month: string; label:
   if (rows.length < 2) return [];
 
   const headerRow = rows[0]; // row 35
-  const dataRow = rows[rows.length - 1]; // last fetched row = 688
+  const dataRow = rows.find((r) => (r[1] ?? "").trim() === "Total Ingresos Devengados") ?? [];
   const result: { month: string; label: string; devengados: number }[] = [];
   const LABELS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 

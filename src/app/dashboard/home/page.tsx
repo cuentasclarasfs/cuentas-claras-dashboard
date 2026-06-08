@@ -58,8 +58,8 @@ export default async function HomeDashboard({
   // Nuevos del mes = cerrados en la fecha de reunión del mes
   const nuevosMes = cerradas.length;
 
-  // CAC = gasto marketing del mes / cierres del mes
-  const cac = cerradas.length > 0 && gastoMkt > 0 ? gastoMkt / cerradas.length : null;
+  // CAC directo de EERR CC (fila "CAC")
+  const cac = eerrcc?.cac ?? null;
 
   // ── Feedback del mes ──
   const feedbackMes = filterFeedbackByMonth(feedbackRaw, { monthKey: selectedMonth });
