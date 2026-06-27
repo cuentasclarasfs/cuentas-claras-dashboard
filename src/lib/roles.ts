@@ -7,7 +7,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 };
 
 export const ROLE_SECTIONS: Record<Role, string[]> = {
-  admin:  ["home", "finanzas", "clientes", "ventas", "setting", "marketing", "operaciones", "administracion", "patrimonio", "contenido"],
+  admin:  ["home", "resumen", "finanzas", "clientes", "ventas", "setting", "marketing", "operaciones", "administracion", "patrimonio", "contenido"],
   ventas: ["ventas", "setting", "marketing", "contenido", "administracion"],
   ops:    ["clientes", "administracion"],
 };

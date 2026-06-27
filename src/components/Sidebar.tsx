@@ -13,6 +13,7 @@ import {
   Wallet,
   FileText,
   ChevronRight,
+  Gauge,
 } from "lucide-react";
 import type { Role } from "@/lib/roles";
 import { canAccess } from "@/lib/roles";
@@ -20,6 +21,7 @@ import { clsx } from "clsx";
 
 const NAV_ITEMS = [
   { href: "/dashboard/home",      label: "Dashboard",  icon: LayoutDashboard, section: "home" },
+  { href: "/dashboard/resumen",   label: "Resumen",    icon: Gauge,           section: "resumen" },
   { href: "/dashboard/finanzas",  label: "Finanzas",   icon: DollarSign,      section: "finanzas" },
   { href: "/dashboard/clientes",  label: "Clientes",   icon: Users,           section: "clientes" },
   { href: "/dashboard/contenido",      label: "Contenido",      icon: FileText,      section: "contenido"      },

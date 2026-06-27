@@ -254,6 +254,9 @@ export async function getEERRCCForMonth(monthKey: string): Promise<{
   numMeses: number | null;
   ltgp: number | null;
   relacionLTGPCAC: number | null;
+  clientesChurn: number | null;
+  clientesQueSeVencen: number | null;
+  pctRenovados: number | null;
 } | null> {
   const rows = await getSheet(process.env.SHEET_ID_EERR!, "'EERR CC'!A35:AZ1000");
   if (!rows[0]) return null;
@@ -280,6 +283,9 @@ export async function getEERRCCForMonth(monthKey: string): Promise<{
     numMeses: null as number | null,
     ltgp: null as number | null,
     relacionLTGPCAC: null as number | null,
+    clientesChurn: null as number | null,
+    clientesQueSeVencen: null as number | null,
+    pctRenovados: null as number | null,
   };
 
   for (const row of rows) {
@@ -304,8 +310,42 @@ export async function getEERRCCForMonth(monthKey: string): Promise<{
     else if (label === "# de meses") result.numMeses = n;
     else if (label === "LTGP") result.ltgp = n;
     else if (label === "Relacion LTGP:CAC") result.relacionLTGPCAC = n;
+    else if (label === "# Clientes que arrancaron y no terminaron") result.clientesChurn = n;
+    else if (label === "# Clientes que se vencen 1er programa") result.clientesQueSeVencen = n;
+    else if (label === "% Renovados") {
+      // may come as 0.65 or 65 depending on cell format
+      const pct = parseFloat((val ?? "").toString().replace("%", "").replace(",", ".").trim());
+      result.pctRenovados = isFinite(pct) ? (pct > 1 ? pct : pct * 100) : null;
+    }
   }
   return result;
+}
+
+// Returns % Renovados time series across all months for trend chart
+export async function getRenovadosTrend(): Promise<{ month: string; label: string; pct: number; renovados: number; seVencen: number }[]> {
+  const rows = await getSheet(process.env.SHEET_ID_EERR!, "'EERR CC'!A35:AZ1000");
+  if (rows.length < 2) return [];
+
+  const headerRow  = rows[0];
+  const pctRow     = rows.find((r) => (r[1] ?? "").trim() === "% Renovados") ?? [];
+  const renovRow   = rows.find((r) => (r[1] ?? "").trim() === "Renovados") ?? [];
+  const seVenceRow = rows.find((r) => (r[1] ?? "").trim() === "# Clientes que se vencen 1er programa") ?? [];
+  const LABELS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+
+  const result: { month: string; label: string; pct: number; renovados: number; seVencen: number }[] = [];
+  for (let i = 0; i < headerRow.length; i++) {
+    const mk = eerrAbrevToMonthKey(headerRow[i] ?? "");
+    if (!mk) continue;
+    const rawPct = (pctRow[i] ?? "").toString().replace("%", "").replace(",", ".").trim();
+    const pct = parseFloat(rawPct);
+    if (!isFinite(pct) || pct === 0) continue;
+    const pctNorm = pct > 1 ? pct : pct * 100;
+    const renovados = parseNumES(renovRow[i] ?? "");
+    const seVencen  = parseNumES(seVenceRow[i] ?? "");
+    const [y, m] = mk.split("-").map(Number);
+    result.push({ month: mk, label: `${LABELS[m-1]} ${y}`, pct: pctNorm, renovados, seVencen });
+  }
+  return result.sort((a, b) => a.month.localeCompare(b.month));
 }
 
 // Returns devengado time series for trend chart (reads header row + data row)
