@@ -78,6 +78,12 @@ export default async function ResumenPage({
     getDevengadosTimeSeries(),
   ]);
 
+  // ── Agendas del mes (por fecha de agenda, para CPA) ──
+  const agendasMes = reunionesRaw.filter(
+    (r) => r["Prospecto"] && inDateRange(r["Fecha de la agenda"] ?? "", from, to)
+  );
+  const cpa = agendasMes.length > 0 && gastoMkt > 0 ? gastoMkt / agendasMes.length : null;
+
   // ── Ventas del mes (por fecha de reunión) ──
   const reuniones = reunionesRaw.filter(
     (r) => r["Prospecto"] && inDateRange(r["Fecha de reunion"], from, to)
@@ -131,6 +137,8 @@ export default async function ResumenPage({
 
   const cac              = eerrcc?.cac ?? null;
   const cacPrev          = eerrccPrev?.cac ?? null;
+  const ltgp             = eerrcc?.ltgp ?? null;
+  const ltgpCac          = eerrcc?.relacionLTGPCAC ?? null;
 
   const variacionClientes = totalActivos !== null && totalActivosPrev !== null
     ? totalActivos - totalActivosPrev : null;
@@ -190,7 +198,7 @@ export default async function ResumenPage({
 
       {/* ── FINANCIERO ── */}
       <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Financiero</h2>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
         <KPICard
           label="Cash Collected"
           value={cashCollected > 0 ? fmt(cashCollected) : "—"}
@@ -211,13 +219,6 @@ export default async function ResumenPage({
           sub="EERR CC"
           icon={TrendingUp}
           color="purple"
-        />
-        <KPICard
-          label="Inversión Mkt"
-          value={gastoMkt > 0 ? `$${Math.round(gastoMkt).toLocaleString()}` : "—"}
-          sub={gastoMktPrev > 0 ? `Ant: $${Math.round(gastoMktPrev).toLocaleString()}` : undefined}
-          icon={Megaphone}
-          color="amber"
         />
       </div>
 
@@ -300,20 +301,34 @@ export default async function ResumenPage({
       {/* ── ADQUISICIÓN ── */}
       <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Adquisición</h2>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {/* 1 — Inversión */}
+        <KPICard
+          label="Inversión"
+          value={gastoMkt > 0 ? `$${Math.round(gastoMkt).toLocaleString()}` : "—"}
+          sub={gastoMktPrev > 0 ? `Ant: $${Math.round(gastoMktPrev).toLocaleString()}` : undefined}
+          icon={Megaphone}
+          color="amber"
+        />
+        {/* 2 — Agendas + CPA */}
         <KPICard
           label="Agendas"
-          value={reuniones.length}
-          sub={`Efectivas: ${efectivas.length}`}
+          value={agendasMes.length || reuniones.length}
+          sub={cpa !== null ? `CPA: $${Math.round(cpa).toLocaleString()}` : `Efect: ${efectivas.length}`}
           icon={Target}
           color="blue"
         />
+        {/* 3 — Cierres + vs ant + CR% */}
         <KPICard
           label="Cierres"
           value={cerrados.length}
-          sub={`CR%: ${crPct.toFixed(0)}% ${crPctPrev > 0 ? `(ant: ${crPctPrev.toFixed(0)}%)` : ""}`}
+          sub={[
+            crPct > 0 ? `CR: ${crPct.toFixed(0)}%` : null,
+            cerradosPrev.length > 0 ? `ant: ${cerradosPrev.length}` : null,
+          ].filter(Boolean).join(" · ") || undefined}
           icon={Target}
           color={crPct >= 30 ? "green" : "rose" as "green"}
         />
+        {/* 4 — CAC */}
         <KPICard
           label="CAC"
           value={fmt(cac)}
@@ -321,12 +336,29 @@ export default async function ResumenPage({
           icon={DollarSign}
           color={cac !== null && cacPrev !== null && cac <= cacPrev ? "green" : "amber" as "green"}
         />
+        {/* 5 — AOV */}
         <KPICard
           label="AOV Prom."
           value={aovProm > 0 ? fmt(aovProm) : "—"}
           sub="Trato cerrado"
           icon={DollarSign}
           color="purple"
+        />
+        {/* 6 — LTGP */}
+        <KPICard
+          label="LTGP"
+          value={fmt(ltgp)}
+          sub={eerrcc?.numMeses !== null && eerrcc?.numMeses ? `${eerrcc.numMeses.toFixed(1)} meses` : undefined}
+          icon={TrendingUp}
+          color="green"
+        />
+        {/* 7 — LTGP:CAC */}
+        <KPICard
+          label="LTGP : CAC"
+          value={ltgpCac !== null ? `${ltgpCac.toFixed(1)}x` : "—"}
+          sub={ltgpCac !== null ? (ltgpCac >= 3 ? "✓ objetivo ≥3x" : "⚠ por debajo de 3x") : undefined}
+          icon={TrendingUp}
+          color={ltgpCac !== null && ltgpCac >= 3 ? "green" : "rose" as "green"}
         />
       </div>
 
