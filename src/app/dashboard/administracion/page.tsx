@@ -4,6 +4,7 @@ import {
   parseNumES, formatARS,
 } from "@/lib/sheets";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { CobranzasTrendChart } from "@/components/charts/CobranzasTrendChart";
 import { currentUser } from "@clerk/nextjs/server";
 import type { Role } from "@/lib/roles";
 
@@ -64,6 +65,9 @@ export default async function AdministracionPage() {
           <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">
             Estadísticas de cobros
           </h2>
+          <div className="card mb-6">
+            <CobranzasTrendChart data={estadisticas} />
+          </div>
           <div className="card mb-8 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -77,19 +81,17 @@ export default async function AdministracionPage() {
               </thead>
               <tbody>
                 {estadisticas.map((row, i) => {
-                  const pctNum = parseFloat(row.porcentaje.replace(",", ".").replace("%", ""));
-                  const pctColor = isNaN(pctNum)
-                    ? "text-slate-400"
-                    : pctNum >= 80 ? "text-emerald-400"
-                    : pctNum >= 60 ? "text-amber-400"
-                    : "text-rose-400";
+                  const pctColor = row.porcentajeNum >= 80 ? "text-emerald-400"
+                    : row.porcentajeNum >= 60 ? "text-amber-400"
+                    : row.porcentajeNum > 0 ? "text-rose-400"
+                    : "text-slate-400";
                   return (
                     <tr key={i} className="border-b border-surface-800/50 hover:bg-surface-800/30">
                       <td className="px-4 py-2.5 font-medium text-white">{row.mes}</td>
-                      <td className="px-4 py-2.5 tabular-nums text-slate-300">{row.total || "—"}</td>
-                      <td className="px-4 py-2.5 tabular-nums text-emerald-400 font-semibold">{row.si || "—"}</td>
-                      <td className="px-4 py-2.5 tabular-nums text-rose-400 font-semibold">{row.no || "—"}</td>
-                      <td className="px-4 py-2.5 tabular-nums text-amber-400">{row.tardeParcial || "—"}</td>
+                      <td className="px-4 py-2.5 tabular-nums text-slate-300">{row.total > 0 ? formatARS(row.total) : "—"}</td>
+                      <td className="px-4 py-2.5 tabular-nums text-emerald-400 font-semibold">{row.si > 0 ? formatARS(row.si) : "—"}</td>
+                      <td className="px-4 py-2.5 tabular-nums text-rose-400 font-semibold">{row.no > 0 ? formatARS(row.no) : "—"}</td>
+                      <td className="px-4 py-2.5 tabular-nums text-amber-400">{row.tardeParcial > 0 ? formatARS(row.tardeParcial) : "—"}</td>
                       <td className={`px-4 py-2.5 tabular-nums font-bold ${pctColor}`}>
                         {row.porcentaje || "—"}
                       </td>
@@ -136,7 +138,7 @@ export default async function AdministracionPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-surface-700">
-                  {["Cliente", "Consultor", "Próx. pago", "Días restantes", "Comentario"].map((h) => (
+                  {["Cliente", "Consultor", "Closer", "Próx. pago", "Días restantes", "Comentario"].map((h) => (
                     <th key={h} className="px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase text-left">
                       {h}
                     </th>
@@ -156,6 +158,7 @@ export default async function AdministracionPage() {
                     <tr key={i} className="border-b border-surface-800/50 hover:bg-surface-800/30">
                       <td className="px-4 py-2.5 font-medium text-white">{d["Cliente"] || "—"}</td>
                       <td className="px-4 py-2.5 text-slate-400">{d["Consultor"] || "—"}</td>
+                      <td className="px-4 py-2.5 text-slate-400">{d["Closer"] || "—"}</td>
                       <td className="px-4 py-2.5 text-slate-400">{d["FechaProxPago"] || "—"}</td>
                       <td className={`px-4 py-2.5 tabular-nums font-semibold ${diasColor}`}>
                         {diasNum !== null

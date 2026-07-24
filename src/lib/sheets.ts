@@ -704,30 +704,32 @@ export async function getStatusPago(): Promise<Record<string, string>[]> {
 // Estadisticas cobranzas — monthly payment stats
 // A=Mes, B=Total, C=Si, D=No, E=Tarde/Algo, F=Porcentaje total
 export async function getEstadisticasCobranzas(): Promise<{
-  mes: string; total: number; si: number; no: number; tardeParcial: number; porcentaje: string;
+  mes: string; total: number; si: number; no: number; tardeParcial: number; porcentaje: string; porcentajeNum: number;
 }[]> {
   const rows = await getSheet(process.env.SHEET_ID_STATUS_CLIENTES!, "Estadisticas cobranzas!A:F");
   if (rows.length < 2) return [];
   return rows.slice(1)
     .filter((r) => r[0]?.trim())
     .map((row) => ({
-      mes:          row[0] ?? "",
-      total:        parseFloat(row[1] ?? "0") || 0,
-      si:           parseFloat(row[2] ?? "0") || 0,
-      no:           parseFloat(row[3] ?? "0") || 0,
-      tardeParcial: parseFloat(row[4] ?? "0") || 0,
-      porcentaje:   row[5] ?? "",
+      mes:            row[0] ?? "",
+      total:          parseNumES(row[1] ?? ""),
+      si:             parseNumES(row[2] ?? ""),
+      no:             parseNumES(row[3] ?? ""),
+      tardeParcial:   parseNumES(row[4] ?? ""),
+      porcentaje:     row[5] ?? "",
+      porcentajeNum:  parseFloat((row[5] ?? "").replace("%", "").replace(",", ".").trim()) || 0,
     }));
 }
 
 // Status y pago — extended read including deuda-mes-anterior (col P) and pago-mes-actual (col Q)
-// A=Cliente, B=Consultor, N=Fecha prox pago, O=Dias para el prox pago, P=Si deben cuanto, Q=Pago?, R=Comentario
+// B=Cliente, D=Consultor, F=Closer, N=Fecha prox pago, O=Dias prox pago, P=Si deben cuanto, Q=Pago?, R=Comentario
 export async function getStatusPagoAdmin(): Promise<Record<string, string>[]> {
   const rows = await getSheet(process.env.SHEET_ID_STATUS_CLIENTES!, "Status y pago!A:R");
   if (rows.length < 3) return [];
-  return rows.slice(2).filter((r) => r[0]?.trim()).map((row) => ({
-    "Cliente":       row[0]  ?? "",  // A
-    "Consultor":     row[1]  ?? "",  // B
+  return rows.slice(2).filter((r) => r[1]?.trim()).map((row) => ({
+    "Cliente":       row[1]  ?? "",  // B
+    "Consultor":     row[3]  ?? "",  // D
+    "Closer":        row[5]  ?? "",  // F
     "FechaProxPago": row[13] ?? "",  // N
     "DiasProxPago":  row[14] ?? "",  // O
     "DeudaAnterior": row[15] ?? "",  // P — meses anteriores
