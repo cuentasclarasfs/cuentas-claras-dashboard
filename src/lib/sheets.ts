@@ -701,6 +701,41 @@ export async function getStatusPago(): Promise<Record<string, string>[]> {
   }));
 }
 
+// Estadisticas cobranzas — monthly payment stats
+// A=Mes, B=Total, C=Si, D=No, E=Tarde/Algo, F=Porcentaje total
+export async function getEstadisticasCobranzas(): Promise<{
+  mes: string; total: number; si: number; no: number; tardeParcial: number; porcentaje: string;
+}[]> {
+  const rows = await getSheet(process.env.SHEET_ID_STATUS_CLIENTES!, "Estadisticas cobranzas!A:F");
+  if (rows.length < 2) return [];
+  return rows.slice(1)
+    .filter((r) => r[0]?.trim())
+    .map((row) => ({
+      mes:          row[0] ?? "",
+      total:        parseFloat(row[1] ?? "0") || 0,
+      si:           parseFloat(row[2] ?? "0") || 0,
+      no:           parseFloat(row[3] ?? "0") || 0,
+      tardeParcial: parseFloat(row[4] ?? "0") || 0,
+      porcentaje:   row[5] ?? "",
+    }));
+}
+
+// Status y pago — extended read including deuda-mes-anterior (col P) and pago-mes-actual (col Q)
+// A=Cliente, B=Consultor, N=Fecha prox pago, O=Dias para el prox pago, P=Si deben cuanto, Q=Pago?, R=Comentario
+export async function getStatusPagoAdmin(): Promise<Record<string, string>[]> {
+  const rows = await getSheet(process.env.SHEET_ID_STATUS_CLIENTES!, "Status y pago!A:R");
+  if (rows.length < 3) return [];
+  return rows.slice(2).filter((r) => r[0]?.trim()).map((row) => ({
+    "Cliente":       row[0]  ?? "",  // A
+    "Consultor":     row[1]  ?? "",  // B
+    "FechaProxPago": row[13] ?? "",  // N
+    "DiasProxPago":  row[14] ?? "",  // O
+    "DeudaAnterior": row[15] ?? "",  // P — meses anteriores
+    "PagoMesActual": row[16] ?? "",  // Q — "No" = debe mes actual
+    "Comentario":    row[17] ?? "",  // R
+  }));
+}
+
 // Comisiones — Resumen Reuniones extended with payment columns
 // B=Prospecto, M=Closer, N=Origen, O=Facturacion, P=ComSet, Q=ComCloser, R=Status
 export async function getVentasComisiones(): Promise<Record<string, string>[]> {
