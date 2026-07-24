@@ -5,6 +5,8 @@ import {
 } from "@/lib/sheets";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { CobranzasTrendChart } from "@/components/charts/CobranzasTrendChart";
+import { ConsultorFilter } from "@/components/ui/ConsultorFilter";
+import { Suspense } from "react";
 import { currentUser } from "@clerk/nextjs/server";
 import type { Role } from "@/lib/roles";
 
@@ -15,7 +17,15 @@ function isPaid(val: string): boolean {
   return v === "TRUE" || v === "VERDADERO";
 }
 
-export default async function AdministracionPage() {
+export default async function AdministracionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ consultor?: string; closer?: string }>;
+}) {
+  const sp = await searchParams;
+  const selectedConsultor = sp.consultor ?? "";
+  const selectedCloser    = sp.closer    ?? "";
+
   const user = await currentUser();
   const role = ((user?.publicMetadata?.role as Role) ?? "ops") as Role;
   const isAdmin = role === "admin";
@@ -31,9 +41,16 @@ export default async function AdministracionPage() {
   const totalDeudaAnterior = deudoresAnteriores.reduce((s, r) => s + parseNumES(r["DeudaAnterior"]), 0);
 
   // Current-month debtors: col Q = "No" AND col P is empty
-  const deudoresMesActual = statusRows.filter((r) =>
+  const deudoresMesActualAll = statusRows.filter((r) =>
     r["PagoMesActual"].trim().toLowerCase() === "no" && r["DeudaAnterior"].trim() === ""
   );
+  const allConsultores = [...new Set(deudoresMesActualAll.map((r) => r["Consultor"]).filter(Boolean))].sort();
+  const allClosers     = [...new Set(deudoresMesActualAll.map((r) => r["Closer"]).filter(Boolean))].sort();
+  const deudoresMesActual = deudoresMesActualAll.filter((r) => {
+    if (selectedConsultor && r["Consultor"] !== selectedConsultor) return false;
+    if (selectedCloser    && r["Closer"]    !== selectedCloser)    return false;
+    return true;
+  });
 
   // Comisiones
   type ComisionRow = Record<string, string> & { pendiente: string };
@@ -124,9 +141,23 @@ export default async function AdministracionPage() {
       </div>
 
       {/* ── DEUDORES MES ACTUAL ── */}
-      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">
-        No pagaron este mes
-      </h2>
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+        <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500">
+          No pagaron este mes
+        </h2>
+        <div className="flex items-center gap-3 flex-wrap">
+          {allConsultores.length > 0 && (
+            <Suspense fallback={null}>
+              <ConsultorFilter consultores={allConsultores} paramKey="consultor" />
+            </Suspense>
+          )}
+          {allClosers.length > 0 && (
+            <Suspense fallback={null}>
+              <ConsultorFilter consultores={allClosers} paramKey="closer" />
+            </Suspense>
+          )}
+        </div>
+      </div>
       <div className="card mb-8">
         {deudoresMesActual.length === 0 ? (
           <p className="text-sm text-emerald-400 text-center py-6">✓ Sin deudores en el mes actual</p>
@@ -134,6 +165,12 @@ export default async function AdministracionPage() {
           <div className="overflow-x-auto">
             <p className="text-xs text-slate-500 mb-3">
               {deudoresMesActual.length} {deudoresMesActual.length === 1 ? "cliente" : "clientes"} sin pagar este mes
+              {(selectedConsultor || selectedCloser) && (
+                <span className="text-brand-400 ml-1">
+                  {selectedConsultor && `— ${selectedConsultor}`}
+                  {selectedCloser && ` — ${selectedCloser}`}
+                </span>
+              )}
             </p>
             <table className="w-full text-sm">
               <thead>
