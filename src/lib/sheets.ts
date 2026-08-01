@@ -533,6 +533,18 @@ export async function getSettingAnalisisFMA(): Promise<Record<string, string>[]>
   }));
 }
 
+// Analisis MSG IG — calificación de leads: O=TipoA, P=TipoBorC, R=CostoTipoA, S=CostoAgenda
+export async function getSettingAnalisisMsgIG(): Promise<Record<string, string>[]> {
+  const rows = await getSheet(process.env.SHEET_ID_SETTING!, "Analisis MSG IG!A:S");
+  if (rows.length < 2) return [];
+  return rows.slice(1).filter((r) => r[0]?.trim()).map((row) => ({
+    "Fecha":       row[0]  ?? "",
+    "TipoA":       row[14] ?? "",  // O
+    "TipoBorC":    row[15] ?? "",  // P
+    "CostoTipoA":  row[17] ?? "",  // R
+  }));
+}
+
 // Marketing gasto total for a month (for CAC calculation)
 export async function getMarketingGastoForMonth(monthKey: string): Promise<number> {
   const [year] = monthKey.split("-").map(Number);

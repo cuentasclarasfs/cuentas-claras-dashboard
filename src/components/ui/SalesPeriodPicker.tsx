@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState, useEffect } from "react";
 
-type Period = "last-week" | "prev-week" | "this-month" | "last-month" | "this-year";
+type Period = "this-week" | "last-week" | "prev-week" | "this-month" | "last-month" | "this-year";
 
 function formatDateInput(d: Date) {
   return d.toISOString().split("T")[0];
@@ -21,12 +21,21 @@ function getLastSunSat(weeksAgo: number): { from: string; to: string } {
   return { from: formatDateInput(lastSun), to: formatDateInput(lastSat) };
 }
 
+function getThisWeek(): { from: string; to: string } {
+  const today = new Date();
+  const dayOfWeek = today.getDay(); // 0=Sun
+  const lastSunday = new Date(today);
+  lastSunday.setDate(today.getDate() - dayOfWeek);
+  return { from: formatDateInput(lastSunday), to: formatDateInput(today) };
+}
+
 function getPeriodDates(period: Period): { from: string; to: string } {
   const today = new Date();
   const y = today.getFullYear();
   const m = today.getMonth();
 
   switch (period) {
+    case "this-week":  return getThisWeek();
     case "last-week":  return getLastSunSat(1);
     case "prev-week":  return getLastSunSat(2);
     case "this-month": {
@@ -45,6 +54,7 @@ function getPeriodDates(period: Period): { from: string; to: string } {
 }
 
 const PERIOD_LABELS: Record<Period, string> = {
+  "this-week":   "Esta semana",
   "last-week":   "Última semana",
   "prev-week":   "Ante última semana",
   "this-month":  "Este mes",

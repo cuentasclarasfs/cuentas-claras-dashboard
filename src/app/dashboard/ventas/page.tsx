@@ -4,6 +4,8 @@ import {
 } from "@/lib/sheets";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SalesPeriodPicker } from "@/components/ui/SalesPeriodPicker";
+import { CloserHistoryChart } from "@/components/charts/CloserHistoryChart";
+import { CanalHistoryChart } from "@/components/charts/CanalHistoryChart";
 import { AlertTriangle } from "lucide-react";
 
 export const revalidate = 60;
@@ -145,6 +147,19 @@ export default async function VentasPage({
     return { all, vsl, ig, fma, otras };
   }
 
+  // ── last 6 months ranges ──
+  function last6Months() {
+    const today = new Date();
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(today.getFullYear(), today.getMonth() - (5 - i), 1);
+      const y = d.getFullYear(), m = d.getMonth();
+      const from = new Date(y, m, 1).toISOString().split("T")[0];
+      const to   = new Date(y, m + 1, 0).toISOString().split("T")[0];
+      const label = d.toLocaleString("es-AR", { month: "short" }).replace(".", "") + " " + String(y).slice(2);
+      return { label, from, to };
+    });
+  }
+
   const gastos     = gastosPeriodo(range.from, range.to);
   const gastosPrev = gastosPeriodo(prev.from, prev.to);
   const agendas    = agendasPeriodo(range.from, range.to);
@@ -219,6 +234,36 @@ export default async function VentasPage({
     const nsCan        = s.total > 0 ? ((s.noShow + s.cancelados) / s.total) * 100 : 0;
     return { nombre, gasto: gastoPrev, ...s, costReu, costEfectiva, cacCanal, cr, nsCan };
   });
+
+  // ── historical data (last 6 months) ──
+  const monthRanges = last6Months();
+  type HistPoint = { label: string; crPct: number; [key: string]: number | string };
+  const closerHistoryData: HistPoint[] = monthRanges.map(({ label, from, to }) => {
+    const rows = reunionesRaw.filter((r) => r["Prospecto"] && inDateRange(r["Fecha de reunion"], from, to));
+    const point: HistPoint = { label, crPct: 0 };
+    let totalEf = 0, totalCc = 0;
+    for (const closer of CLOSERS) {
+      const cr = rows.filter((r) => r["Closer"].trim() === closer);
+      const cc = cr.filter((r) => isClosedStatus(r["Status"])).length;
+      const ef = cr.filter((r) => !r["Status"].toLowerCase().includes("no presentado") && !r["Status"].toLowerCase().includes("no show") && r["Status"].toLowerCase() !== "cancelado").length;
+      if (cr.length > 0) point[closer] = cc;
+      totalEf += ef; totalCc += cc;
+    }
+    point.crPct = totalEf > 0 ? parseFloat(((totalCc / totalEf) * 100).toFixed(1)) : 0;
+    return point;
+  });
+  const activeClosers = CLOSERS.filter((c) => closerHistoryData.some((p) => ((p[c] as number) ?? 0) > 0));
+
+  type CanalPoint = { label: string; ccSpa: number; crPct: number };
+  const canalHistoryData: Record<string, CanalPoint[]> = {};
+  for (const { nombre, match } of canalesDef) {
+    canalHistoryData[nombre] = monthRanges.map(({ label, from, to }) => {
+      const rows = reunionesRaw.filter((r) => r["Prospecto"] && inDateRange(r["Fecha de reunion"], from, to) && match(r));
+      const s = closingStats(rows);
+      return { label, ccSpa: s.ccSpa, crPct: s.efectivas > 0 ? parseFloat(((s.ccSpa / s.efectivas) * 100).toFixed(1)) : 0 };
+    });
+  }
+  const activeCanales = canalesDef.map((c) => c.nombre).filter((n) => canalStats.find((c) => c.nombre === n));
 
   const fmtUSD = (n: number | null) => n != null && n > 0 ? `$${Math.round(n).toLocaleString()}` : "—";
   const nsCancelPct = globalStats.total > 0 ? ((globalStats.noShow + globalStats.cancelados) / globalStats.total) * 100 : 0;
@@ -318,6 +363,7 @@ export default async function VentasPage({
               </tbody>
             </table>
           </div>
+          <CloserHistoryChart data={closerHistoryData} closers={activeClosers} />
         </div>
       )}
 
@@ -541,6 +587,7 @@ export default async function VentasPage({
               })()}
             </tbody>
           </table>
+        <CanalHistoryChart data={canalHistoryData} canales={activeCanales} />
         </div>
       </div>
 

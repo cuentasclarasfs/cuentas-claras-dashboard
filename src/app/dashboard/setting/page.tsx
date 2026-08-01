@@ -1,5 +1,5 @@
 import {
-  getSettingMsgIG, getSettingMsgIGA, getSettingTiposLeads, getSettingAnalisisFMA,
+  getSettingMsgIG, getSettingMsgIGA, getSettingTiposLeads, getSettingAnalisisFMA, getSettingAnalisisMsgIG,
   getVentasReuniones, isClosedStatus, parseUSD,
   getMarketingVSL, getMarketingFMA, getContenidoPosteos, getContenidoHistorias,
   getComparativaA,
@@ -116,11 +116,12 @@ export default async function SettingPage({
   const range = sp.from && sp.to ? { from: sp.from, to: sp.to } : defaultRange();
   const prev  = prevRange(range.from, range.to);
 
-  const [msgIGRaw, msgIGARaw, tiposLeadsRaw, analisisFMARaw, reunionesRaw, vslRaw, fmaRawData, comparativaARaw] = await Promise.all([
+  const [msgIGRaw, msgIGARaw, tiposLeadsRaw, analisisFMARaw, analisisMsgIGRaw, reunionesRaw, vslRaw, fmaRawData, comparativaARaw] = await Promise.all([
     getSettingMsgIG(),
     getSettingMsgIGA(),
     getSettingTiposLeads(),
     getSettingAnalisisFMA(),
+    getSettingAnalisisMsgIG(),
     getVentasReuniones(),
     getMarketingVSL(),
     getMarketingFMA(),
@@ -388,6 +389,16 @@ export default async function SettingPage({
   const neg13         = sumInt(analisisFMA, "Negocio 1-3 años");
   const neg3plus      = sumInt(analisisFMA, "Negocio >3 años");
   const respuestas    = tienenNegocio + noNegocio;
+
+  // Tipo A / B o C desde Analisis MSG IG
+  const analisisMsgIG = analisisMsgIGRaw.filter((r) => inR(r["Fecha"]));
+  const msgIGTipoA    = analisisMsgIG.reduce((s, r) => s + (parseFloat(r["TipoA"]    || "0") || 0), 0);
+  const msgIGTipoBorC = analisisMsgIG.reduce((s, r) => s + (parseFloat(r["TipoBorC"] || "0") || 0), 0);
+  // Weighted average costo tipo A (rows where TipoA > 0)
+  const costoTipoARows = analisisMsgIG.filter((r) => parseFloat(r["TipoA"] || "0") > 0 && parseFloat(r["CostoTipoA"] || "0") > 0);
+  const costoTipoA = costoTipoARows.length > 0
+    ? costoTipoARows.reduce((s, r) => s + parseFloat(r["CostoTipoA"] || "0"), 0) / costoTipoARows.length
+    : null;
 
   const prevInicios = sumInt(analisisPrev, "Inicios");
 
@@ -1116,23 +1127,38 @@ export default async function SettingPage({
             </div>
           </div>
 
-          {/* Negocio breakdown */}
-          {tienenNegocio > 0 && (
+          {/* Tipo A / B o C */}
+          {(msgIGTipoA > 0 || msgIGTipoBorC > 0) && (
             <div className="mt-4 pt-4 border-t border-surface-700/40">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-2">Antigüedad del negocio</p>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { label: "< 1 año",   value: neg1,    color: "text-amber-400" },
-                  { label: "1–3 años",  value: neg13,   color: "text-emerald-400" },
-                  { label: "> 3 años",  value: neg3plus, color: "text-emerald-400" },
-                ].map((item) => (
-                  <div key={item.label} className="bg-surface-800/50 rounded-lg p-2.5 text-center border border-surface-700/40">
-                    <p className="text-[10px] text-slate-500 mb-0.5">{item.label}</p>
-                    <p className={`text-lg font-bold ${item.color}`}>{item.value || "—"}</p>
-                    <p className="text-[10px] text-slate-600">{pct(item.value, tienenNegocio)}</p>
-                  </div>
-                ))}
+              <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-2">Calificación de leads</p>
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <div className="bg-surface-800/50 rounded-lg p-2.5 text-center border border-surface-700/40">
+                  <p className="text-[10px] text-slate-500 mb-0.5">Tipo A</p>
+                  <p className="text-lg font-bold text-emerald-400">{msgIGTipoA || "—"}</p>
+                  {costoTipoA !== null && (
+                    <p className="text-[10px] text-slate-500 mt-0.5">${Math.round(costoTipoA).toLocaleString()} c/u</p>
+                  )}
+                </div>
+                <div className="bg-surface-800/50 rounded-lg p-2.5 text-center border border-surface-700/40">
+                  <p className="text-[10px] text-slate-500 mb-0.5">Tipo B o C</p>
+                  <p className="text-lg font-bold text-slate-400">{msgIGTipoBorC || "—"}</p>
+                  {msgIGTipoA + msgIGTipoBorC > 0 && (
+                    <p className="text-[10px] text-slate-600">{pct(msgIGTipoBorC, msgIGTipoA + msgIGTipoBorC)} del total</p>
+                  )}
+                </div>
               </div>
+              {/* % Tipo A → Agendas */}
+              {(() => {
+                const tipoAAgendas = outByTipo.find((t) => t.tipo === "A")?.agendas ?? 0;
+                if (!msgIGTipoA || !tipoAAgendas) return null;
+                const convPct = ((tipoAAgendas / msgIGTipoA) * 100).toFixed(1);
+                return (
+                  <div className="bg-surface-800/30 rounded-lg px-3 py-2 flex items-center justify-between border border-surface-700/30">
+                    <p className="text-xs text-slate-400">Tipo A → Agendas</p>
+                    <p className="text-sm font-bold text-brand-400">{tipoAAgendas} <span className="text-xs text-slate-500">({convPct}%)</span></p>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
