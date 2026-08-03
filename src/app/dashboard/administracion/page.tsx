@@ -10,7 +10,7 @@ import { Suspense } from "react";
 import { currentUser } from "@clerk/nextjs/server";
 import type { Role } from "@/lib/roles";
 
-export const revalidate = 0;
+export const revalidate = 60;
 
 function isPaid(val: string): boolean {
   const v = val.trim().toUpperCase();
