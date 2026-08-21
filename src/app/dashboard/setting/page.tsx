@@ -1,7 +1,7 @@
 import {
   getSettingMsgIG, getSettingMsgIGA, getSettingTiposLeads, getSettingAnalisisFMA, getSettingAnalisisMsgIG,
   getVentasReuniones, isClosedStatus, parseUSD,
-  getMarketingVSL, getMarketingFMA, getContenidoPosteos, getContenidoHistorias,
+  getMarketingVSL, getMarketingFMA, getMarketingFORM, getContenidoPosteos, getContenidoHistorias,
   getComparativaA,
 } from "@/lib/sheets";
 import {
@@ -116,7 +116,7 @@ export default async function SettingPage({
   const range = sp.from && sp.to ? { from: sp.from, to: sp.to } : defaultRange();
   const prev  = prevRange(range.from, range.to);
 
-  const [msgIGRaw, msgIGARaw, tiposLeadsRaw, analisisFMARaw, analisisMsgIGRaw, reunionesRaw, vslRaw, fmaRawData, comparativaARaw] = await Promise.all([
+  const [msgIGRaw, msgIGARaw, tiposLeadsRaw, analisisFMARaw, analisisMsgIGRaw, reunionesRaw, vslRaw, fmaRawData, formRawData, comparativaARaw] = await Promise.all([
     getSettingMsgIG(),
     getSettingMsgIGA(),
     getSettingTiposLeads(),
@@ -125,6 +125,7 @@ export default async function SettingPage({
     getVentasReuniones(),
     getMarketingVSL(),
     getMarketingFMA(),
+    getMarketingFORM(),
     getComparativaA(),
   ]);
 
@@ -162,11 +163,13 @@ export default async function SettingPage({
   const gastoVSL    = vslRaw.filter((r) => inR(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["Gasto"] ?? ""), 0);
   const gastoIG     = msgIG.reduce((s, r) => s + parseUSD(r["Gasto"] ?? ""), 0);
   const gastoFMA    = fmaRawData.filter((r) => inR(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["$"] ?? ""), 0);
+  const gastoFORM   = formRawData.filter((r) => inR(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["$"] ?? ""), 0);
   const gastoVSLPrev = vslRaw.filter((r) => inRPrev(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["Gasto"] ?? ""), 0);
   const gastoIGPrev  = msgIGRaw.filter((r) => inRPrev(r["Fecha"])).reduce((s, r) => s + parseUSD(r["Gasto"] ?? ""), 0);
   const gastoFMAPrev = fmaRawData.filter((r) => inRPrev(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["$"] ?? ""), 0);
-  const gastoTotal   = gastoVSL + gastoIG + gastoFMA;
-  const gastoTotalPrev = gastoVSLPrev + gastoIGPrev + gastoFMAPrev;
+  const gastoFORMPrev = formRawData.filter((r) => inRPrev(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["$"] ?? ""), 0);
+  const gastoTotal   = gastoVSL + gastoIG + gastoFMA + gastoFORM;
+  const gastoTotalPrev = gastoVSLPrev + gastoIGPrev + gastoFMAPrev + gastoFORMPrev;
 
   // Agendas by channel
   const reunVSL   = reuniones.filter((r) => r["Canal"] === "Publi a VSL");
@@ -601,12 +604,17 @@ export default async function SettingPage({
                 { nombre: "VSL",    gasto: gastoVSL,  gastoPrev: gastoVSLPrev, rows: reunVSL,  rowsPrev: reunVSLPrev },
                 { nombre: "MSG IG", gasto: gastoIG,   gastoPrev: gastoIGPrev,  rows: reunIG,   rowsPrev: reunIGPrev  },
                 { nombre: "FMA",    gasto: gastoFMA,  gastoPrev: gastoFMAPrev, rows: reunFMA,  rowsPrev: reunFMAPrev },
-                ...otrasCanalesNames.map((canal) => ({
-                  nombre: canal,
-                  gasto: 0, gastoPrev: 0,
-                  rows: reuniones.filter((r) => r["Canal"].trim() === canal),
-                  rowsPrev: reunPrev.filter((r) => r["Canal"].trim() === canal),
-                })),
+                ...otrasCanalesNames.map((canal) => {
+                  const cLower = canal.trim().toLowerCase();
+                  const isForm = cLower === "form";
+                  return {
+                    nombre: canal,
+                    gasto: isForm ? gastoFORM : 0,
+                    gastoPrev: isForm ? gastoFORMPrev : 0,
+                    rows: reuniones.filter((r) => r["Canal"].trim() === canal),
+                    rowsPrev: reunPrev.filter((r) => r["Canal"].trim() === canal),
+                  };
+                }),
               ].map(({ nombre, gasto, gastoPrev, rows, rowsPrev }) => {
                 const ag   = rows.length;
                 const agP  = rowsPrev.length;

@@ -108,10 +108,10 @@ export async function getCashflowForMonth(monthKey: string): Promise<{
   for (const row of rows) {
     const label = (row[1] ?? "").trim().toLowerCase();
     const val = parseNumES(row[colIndex] ?? "");
-    if (label === "total ingresos") cashCollected = val;
-    else if (label === "total gastos cuentas claras") totalGastos = val;
+    if (label === "total cobros" || label === "total ingresos") cashCollected = val;
+    else if (label === "total pagos" || label === "total gastos cuentas claras") totalGastos = val;
     else if (label === "cashflow cuentas claras") cashflowCC = val;
-    else if (label === "total gastos personales") totalGastosPersonales = val;
+    else if (label === "gastos personales" || label === "total gastos personales") totalGastosPersonales = val;
     else if (label === "cuentas claras (primer programa)") primerProgramaCC = val;
     else if (label === "cuentas claras (renovados)") renovadosCC = val;
     else if (label === "ahorro final") ahorroFinal = val;
@@ -187,7 +187,10 @@ export async function getCashCollectedTimeSeries(): Promise<{ month: string; lab
   for (const rows of [rows25, rows26]) {
     if (rows.length < 2) continue;
     const headerRow = rows[1];
-    const totalRow = rows.find((r) => (r[1] ?? "").trim().toLowerCase() === "total ingresos");
+    const totalRow = rows.find((r) => {
+      const l = (r[1] ?? "").trim().toLowerCase();
+      return l === "total cobros" || l === "total ingresos";
+    });
     if (!totalRow) continue;
     for (let i = 2; i < headerRow.length; i++) {
       const mk = spanishHeaderToMonthKey(headerRow[i] ?? "");
@@ -293,7 +296,7 @@ export async function getEERRCCForMonth(monthKey: string): Promise<{
     const val = row[colIndex];
     if (!val) continue;
     const n = parseNumES(val);
-    if (label === "Total Ingresos Devengados") result.ingresosDevengados = n;
+    if (label === "Total Ventas" || label === "Total Ingresos Devengados") result.ingresosDevengados = n;
     else if (label === "Total gastos variables") result.totalGastosVariables = n;
     else if (label === "Resultado Bruto") result.resultadoBruto = n;
     else if (label === "Total Gastos Fijos") result.totalGastosFijos = n;
@@ -301,13 +304,13 @@ export async function getEERRCCForMonth(monthKey: string): Promise<{
     else if (label === "Clientes 1er programa") result.clientesPrimerPrograma = n;
     else if (label === "Clientes Renovados") result.clientesRenovados = n;
     else if (label === "Downsell") result.downsell = n;
-    else if (label === "Total Clientes Activos") result.totalClientesActivos = n;
-    else if (label === "Clientes Nuevos cerrados") result.clientesNuevosCerrados = n;
-    else if (label === "Gastos Marketing y Redes") result.gastosMarketingRedes = n;
+    else if (label === "Total Clientes Activos" || label === "Cantidad de Clientes") result.totalClientesActivos = n;
+    else if (label === "Cantidad de ventas x Marketing" || label === "Clientes Nuevos cerrados") result.clientesNuevosCerrados = n;
+    else if (label === "Gastos de Marketing" || label === "Gastos Marketing y Redes") result.gastosMarketingRedes = n;
     else if (label === "CAC") result.cac = n;
     else if (label === "Ticket Promedio") result.ticketPromedio = n;
-    else if (label === "Gross Profit") result.grossProfit = n;
-    else if (label === "# de meses") result.numMeses = n;
+    else if (label === "Resultado Bruto x venta" || label === "Gross Profit") result.grossProfit = n;
+    else if (label === "Frecuencia de compra" || label === "# de meses") result.numMeses = n;
     else if (label === "LTGP") result.ltgp = n;
     else if (label === "Relacion LTGP:CAC") result.relacionLTGPCAC = n;
     else if (label === "# Clientes que arrancaron y no terminaron") result.clientesChurn = n;
@@ -354,7 +357,10 @@ export async function getDevengadosTimeSeries(): Promise<{ month: string; label:
   if (rows.length < 2) return [];
 
   const headerRow = rows[0]; // row 35
-  const dataRow = rows.find((r) => (r[1] ?? "").trim() === "Total Ingresos Devengados") ?? [];
+  const dataRow = rows.find((r) => {
+    const l = (r[1] ?? "").trim();
+    return l === "Total Ventas" || l === "Total Ingresos Devengados";
+  }) ?? [];
   const result: { month: string; label: string; devengados: number }[] = [];
   const LABELS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 
@@ -473,6 +479,19 @@ export async function getMarketingResumen() {
 export async function getMarketingRubros() {
   const rows = await getSheet(process.env.SHEET_ID_SETTING!, "Rubros!A:E");
   return rowsToObjects(rows);
+}
+
+export async function getMarketingFORM(): Promise<Record<string, string>[]> {
+  const rows = await getSheet(process.env.SHEET_ID_SETTING!, "FORM!A:F");
+  if (rows.length < 2) return [];
+  return rows.slice(1).filter((r) => r[0]?.trim()).map((row) => ({
+    "Fecha":        row[0] ?? "",
+    "$":            row[1] ?? "",  // B — inversión
+    "Leads":        row[2] ?? "",  // C
+    "$ Lead":       row[3] ?? "",  // D
+    "Lead tipo A":  row[4] ?? "",  // E
+    "$ lead A":     row[5] ?? "",  // F
+  }));
 }
 
 // MSG IG positional mapping (col B=Gasto, D=Leads, G=Pitch, H=Permiso, I=AgEnviada, J=Agendado)
