@@ -5,12 +5,14 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recha
 import type { PortfolioAsset } from "@/lib/sheets";
 
 const PAIS_COLORS: Record<string, string> = {
-  "EEUU":      "#6366f1",
-  "Argentina": "#10b981",
-  "Europa":    "#f59e0b",
-  "Brasil":    "#f43f5e",
-  "Global":    "#22d3ee",
-  "CSPX":      "#a78bfa",
+  "EEUU":             "#22c55e",
+  "Argentina":        "#38bdf8",
+  "Crypto":           "#eab308",
+  "Resto del Mundo":  "#8b5cf6",
+  "Europa":           "#f97316",
+  "Brasil":           "#f43f5e",
+  "Global":           "#22d3ee",
+  "CSPX":             "#a78bfa",
 };
 const FALLBACK_COLORS = ["#64748b", "#94a3b8", "#475569", "#334155", "#1e293b"];
 
@@ -34,23 +36,25 @@ function CustomTooltip({ active, payload }: any) {
 export function AccionesCartera({ assets }: { assets: PortfolioAsset[] }) {
   const [openPais, setOpenPais] = useState<string | null>(null);
 
-  const acciones = assets.filter((a) => a.clase === "Acciones");
-  if (!acciones.length) return null;
+  const rentaVariable = assets.filter((a) => a.clase === "Acciones" || a.clase === "Crypto");
+  if (!rentaVariable.length) return null;
 
-  const totalAcciones = acciones.reduce((s, a) => s + a.valorUSD, 0);
+  const totalRV = rentaVariable.reduce((s, a) => s + a.valorUSD, 0);
 
-  // Group by pais
+  // Group Acciones by pais, Crypto as its own group
   const byPais = new Map<string, PortfolioAsset[]>();
-  for (const a of acciones) {
-    const p = a.pais.trim() || "Sin clasificar";
-    if (!byPais.has(p)) byPais.set(p, []);
-    byPais.get(p)!.push(a);
+  for (const a of rentaVariable) {
+    const key = a.clase === "Crypto" ? "Crypto" : (a.pais.trim() || "Sin clasificar");
+    if (!byPais.has(key)) byPais.set(key, []);
+    byPais.get(key)!.push(a);
   }
+  const totalAcciones = rentaVariable.filter((a) => a.clase === "Acciones").reduce((s, a) => s + a.valorUSD, 0);
 
   // Sort by total desc
   const grupos = [...byPais.entries()]
     .map(([pais, items]) => ({
       pais,
+      isCrypto: pais === "Crypto",
       items: items.sort((a, b) => b.valorUSD - a.valorUSD),
       total: items.reduce((s, a) => s + a.valorUSD, 0),
     }))
@@ -61,7 +65,7 @@ export function AccionesCartera({ assets }: { assets: PortfolioAsset[] }) {
   const pieData = grupos.map((g) => ({
     name: g.pais,
     value: g.total,
-    pct: totalAcciones > 0 ? (g.total / totalAcciones) * 100 : 0,
+    pct: totalRV > 0 ? (g.total / totalRV) * 100 : 0,
     color: PAIS_COLORS[g.pais] ?? FALLBACK_COLORS[fallbackIdx++ % FALLBACK_COLORS.length],
   }));
 
@@ -70,13 +74,18 @@ export function AccionesCartera({ assets }: { assets: PortfolioAsset[] }) {
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Left: expandable country rows */}
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-4">
-            Cartera de Acciones — {usd(totalAcciones)} total
-          </p>
+          <div className="flex items-baseline gap-4 mb-4">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+              Renta Variable + Crypto — {usd(totalRV)} total
+            </p>
+            <span className="text-[10px] text-slate-600">
+              Acciones {usd(totalAcciones)} · Crypto {usd(totalRV - totalAcciones)}
+            </span>
+          </div>
           <div className="space-y-1">
             {grupos.map((g) => {
               const color = PAIS_COLORS[g.pais] ?? "#64748b";
-              const pct   = totalAcciones > 0 ? (g.total / totalAcciones) * 100 : 0;
+              const pct   = totalRV > 0 ? (g.total / totalRV) * 100 : 0;
               const isOpen = openPais === g.pais;
               return (
                 <div key={g.pais}>
@@ -99,14 +108,14 @@ export function AccionesCartera({ assets }: { assets: PortfolioAsset[] }) {
                       <table className="w-full text-xs mt-1">
                         <thead>
                           <tr className="border-b border-surface-700/40">
-                            {["Activo", "Moneda", "Cantidad", "Precio", "Valor USD", "% Acciones"].map((h) => (
+                            {["Activo", "Moneda", "Cantidad", "Precio", "Valor USD", "% RV"].map((h) => (
                               <th key={h} className="pb-1.5 text-[10px] font-semibold text-slate-600 uppercase text-right first:text-left">{h}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
                           {g.items.map((a, i) => {
-                            const pctAcc = totalAcciones > 0 ? (a.valorUSD / totalAcciones) * 100 : 0;
+                            const pctAcc = totalRV > 0 ? (a.valorUSD / totalRV) * 100 : 0;
                             return (
                               <tr key={i} className="border-b border-surface-800/30">
                                 <td className="py-1.5 font-medium text-slate-300">{a.activo}</td>
