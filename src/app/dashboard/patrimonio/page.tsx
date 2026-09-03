@@ -7,6 +7,7 @@ import {
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PatrimonioChart } from "@/components/patrimonio/PatrimonioChart";
 import { RiskPieChart } from "@/components/patrimonio/RiskPieChart";
+import { AccionesCartera } from "@/components/patrimonio/AccionesCartera";
 
 export const revalidate = 0;
 
@@ -174,6 +175,10 @@ export default async function PatrimonioPage() {
 
       </div>
 
+      {/* ── Cartera de Acciones ── */}
+      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Cartera de Acciones</h2>
+      <AccionesCartera assets={assets} />
+
       {/* ── Gráfico de evolución ── */}
       <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Evolución histórica</h2>
       <div className="card mb-8">
@@ -187,7 +192,7 @@ export default async function PatrimonioPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-700">
-                {["Activo", "Clase", "Moneda", "Cantidad", "Precio", "Valor USD", "% Total", "Riesgo", "Liquidez"].map((h) => (
+                {["Activo", "Clase", "Moneda", "Cantidad", "Precio", "Valor USD", "% Total", "Riesgo", "País"].map((h) => (
                   <th key={h} className="px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase text-left first:text-left">{h}</th>
                 ))}
               </tr>
@@ -223,7 +228,7 @@ export default async function PatrimonioPage() {
                           : "text-emerald-400"
                       }`}>{a.riesgo}</span>
                     </td>
-                    <td className="px-3 py-2 text-slate-400 text-xs text-center">{a.liquidez}</td>
+                    <td className="px-3 py-2 text-slate-400 text-xs text-center">{a.pais || "—"}</td>
                   </tr>
                 ))}
             </tbody>

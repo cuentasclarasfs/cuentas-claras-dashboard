@@ -1067,7 +1067,7 @@ export interface PortfolioAsset {
   pctTotal: number;
   pctSinAF: number;
   riesgo: string;
-  liquidez: string;
+  pais: string;
   notas: string;
 }
 
@@ -1107,7 +1107,7 @@ export async function getPatrimonioPortfolio(): Promise<PortfolioAsset[]> {
     pctTotal:  Number(r[6]  ?? 0),
     pctSinAF:  Number(r[7]  ?? 0),
     riesgo:    String(r[8]  ?? "").trim(),
-    liquidez:  String(r[9]  ?? "").trim(),
+    pais:      String(r[9]  ?? "").trim(),
     notas:     String(r[10] ?? "").trim(),
   }));
 }
