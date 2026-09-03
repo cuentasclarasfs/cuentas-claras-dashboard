@@ -96,37 +96,49 @@ export function AccionesCartera({ assets }: { assets: PortfolioAsset[] }) {
                   >
                     <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
                     <span className="flex-1 font-semibold text-white text-sm">{g.pais}</span>
-                    <span className="text-xs text-slate-400 tabular-nums">{g.items.length} activo{g.items.length !== 1 ? "s" : ""}</span>
+                    <span className="text-xs text-slate-400 tabular-nums">{new Set(g.items.map((a) => a.moneda.trim() || a.activo)).size} ticker{new Set(g.items.map((a) => a.moneda.trim() || a.activo)).size !== 1 ? "s" : ""}</span>
                     <span className="text-xs text-slate-400 tabular-nums w-14 text-right">{pct.toFixed(1)}%</span>
                     <span className="font-semibold tabular-nums text-white text-sm w-24 text-right">{usd(g.total)}</span>
                     <span className={`ml-1 text-slate-500 text-xs transition-transform ${isOpen ? "rotate-180" : ""}`}>▼</span>
                   </button>
 
-                  {/* Expanded stock list */}
-                  {isOpen && (
+                  {/* Expanded stock list — grouped by ticker (moneda field) */}
+                  {isOpen && (() => {
+                    // Group by ticker
+                    const byTicker = new Map<string, { cantidad: number; valorUSD: number; precioUSD: number }>();
+                    for (const a of g.items) {
+                      const ticker = a.moneda.trim() || a.activo;
+                      const prev = byTicker.get(ticker) ?? { cantidad: 0, valorUSD: 0, precioUSD: a.precioUSD };
+                      byTicker.set(ticker, {
+                        cantidad: prev.cantidad + a.cantidad,
+                        valorUSD: prev.valorUSD + a.valorUSD,
+                        precioUSD: a.precioUSD || prev.precioUSD,
+                      });
+                    }
+                    const tickerRows = [...byTicker.entries()].sort((a, b) => b[1].valorUSD - a[1].valorUSD);
+                    return (
                     <div className="ml-5 mb-1 border-l-2 border-surface-700/50 pl-3">
                       <table className="w-full text-xs mt-1">
                         <thead>
                           <tr className="border-b border-surface-700/40">
-                            {["Activo", "Moneda", "Cantidad", "Precio", "Valor USD", "% RV"].map((h) => (
+                            {["Ticker", "Cantidad", "Precio", "Valor USD", "% RV"].map((h) => (
                               <th key={h} className="pb-1.5 text-[10px] font-semibold text-slate-600 uppercase text-right first:text-left">{h}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
-                          {g.items.map((a, i) => {
-                            const pctAcc = totalRV > 0 ? (a.valorUSD / totalRV) * 100 : 0;
+                          {tickerRows.map(([ticker, data]) => {
+                            const pctAcc = totalRV > 0 ? (data.valorUSD / totalRV) * 100 : 0;
                             return (
-                              <tr key={i} className="border-b border-surface-800/30">
-                                <td className="py-1.5 font-medium text-slate-300">{a.activo}</td>
-                                <td className="py-1.5 text-right text-slate-500">{a.moneda}</td>
+                              <tr key={ticker} className="border-b border-surface-800/30">
+                                <td className="py-1.5 font-medium text-slate-300">{ticker}</td>
                                 <td className="py-1.5 text-right tabular-nums text-slate-400">
-                                  {a.cantidad > 0 ? a.cantidad.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "—"}
+                                  {data.cantidad > 0 ? data.cantidad.toLocaleString("en-US", { maximumFractionDigits: 4 }) : "—"}
                                 </td>
                                 <td className="py-1.5 text-right tabular-nums text-slate-400">
-                                  {a.precioUSD > 1 ? usd(a.precioUSD) : a.precioUSD > 0 ? `$${a.precioUSD.toFixed(4)}` : "—"}
+                                  {data.precioUSD > 1 ? usd(data.precioUSD) : data.precioUSD > 0 ? `$${data.precioUSD.toFixed(4)}` : "—"}
                                 </td>
-                                <td className="py-1.5 text-right tabular-nums font-semibold text-white">{usd(a.valorUSD)}</td>
+                                <td className="py-1.5 text-right tabular-nums font-semibold text-white">{usd(data.valorUSD)}</td>
                                 <td className="py-1.5 text-right tabular-nums text-slate-500">{pctAcc.toFixed(1)}%</td>
                               </tr>
                             );
@@ -134,7 +146,8 @@ export function AccionesCartera({ assets }: { assets: PortfolioAsset[] }) {
                         </tbody>
                       </table>
                     </div>
-                  )}
+                    );
+                  })()}
                 </div>
               );
             })}
