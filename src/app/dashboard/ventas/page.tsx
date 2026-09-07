@@ -1,5 +1,5 @@
 import {
-  getVentasReuniones, getMarketingVSL, getMarketingMsgIG, getMarketingFMA,
+  getVentasReuniones, getMarketingVSL, getMarketingMsgIG, getMarketingFMA, getMarketingFORM,
   isClosedStatus, parseUSD, parseNumES, formatARS,
 } from "@/lib/sheets";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -122,19 +122,21 @@ export default async function VentasPage({
   const range  = sp.from && sp.to ? { from: sp.from, to: sp.to } : defaultRange();
   const prev   = prevRange(range.from, range.to);
 
-  const [reunionesRaw, vslData, igData, fmaData] = await Promise.all([
+  const [reunionesRaw, vslData, igData, fmaData, formData] = await Promise.all([
     getVentasReuniones(),
     getMarketingVSL(),
     getMarketingMsgIG(),
     getMarketingFMA(),
+    getMarketingFORM(),
   ]);
 
   // ── gastos por período ──
   function gastosPeriodo(f: string, t: string) {
-    const vsl = vslData.filter((r) => inDateRange(r["Fecha"] ?? "", f, t)).reduce((s, r) => s + parseUSD(r["Gasto"] ?? ""), 0);
-    const ig  = igData .filter((r) => inDateRange(r["Fecha"] ?? "", f, t)).reduce((s, r) => s + parseUSD(r["$"]    ?? ""), 0);
-    const fma = fmaData.filter((r) => inDateRange(r["Fecha"] ?? "", f, t)).reduce((s, r) => s + parseUSD(r["$"]    ?? ""), 0);
-    return { vsl, ig, fma, total: vsl + ig + fma };
+    const vsl  = vslData .filter((r) => inDateRange(r["Fecha"] ?? "", f, t)).reduce((s, r) => s + parseUSD(r["Gasto"] ?? ""), 0);
+    const ig   = igData  .filter((r) => inDateRange(r["Fecha"] ?? "", f, t)).reduce((s, r) => s + parseUSD(r["$"]    ?? ""), 0);
+    const fma  = fmaData .filter((r) => inDateRange(r["Fecha"] ?? "", f, t)).reduce((s, r) => s + parseUSD(r["$"]    ?? ""), 0);
+    const form = formData.filter((r) => inDateRange(r["Fecha"] ?? "", f, t)).reduce((s, r) => s + parseUSD(r["$"]    ?? ""), 0);
+    return { vsl, ig, fma, form, total: vsl + ig + fma + form };
   }
 
   // ── agendas (col K) ──
@@ -191,7 +193,8 @@ export default async function VentasPage({
   // ── canales (col L + col D) ──
   // Canales "otros": todo lo que no es VSL, ADS Mje IG ni FMA, desglosado individualmente
   const isKnownCanal = (r: Record<string,string>) =>
-    r["Canal"] === "Publi a VSL" || r["Canal"] === "ADS Mje IG" || isFMA(r["Canal"]);
+    r["Canal"] === "Publi a VSL" || r["Canal"] === "ADS Mje IG" || isFMA(r["Canal"]) ||
+    r["Canal"].trim().toLowerCase() === "form";
   const otrosCanalesNames = [
     ...new Set(
       [...reuniones, ...reunionesPrev]
@@ -201,9 +204,10 @@ export default async function VentasPage({
   ].sort();
 
   const canalesDef = [
-    { nombre: "Publi a VSL", gasto: gastos.vsl, match: (r: Record<string,string>) => r["Canal"] === "Publi a VSL" },
-    { nombre: "ADS Mje IG",  gasto: gastos.ig,  match: (r: Record<string,string>) => r["Canal"] === "ADS Mje IG"  },
-    { nombre: "FMA",         gasto: gastos.fma, match: (r: Record<string,string>) => isFMA(r["Canal"])             },
+    { nombre: "Publi a VSL", gasto: gastos.vsl,  match: (r: Record<string,string>) => r["Canal"] === "Publi a VSL" },
+    { nombre: "ADS Mje IG",  gasto: gastos.ig,   match: (r: Record<string,string>) => r["Canal"] === "ADS Mje IG"  },
+    { nombre: "FMA",         gasto: gastos.fma,  match: (r: Record<string,string>) => isFMA(r["Canal"])             },
+    { nombre: "Form",        gasto: gastos.form, match: (r: Record<string,string>) => r["Canal"].trim().toLowerCase() === "form" },
     ...otrosCanalesNames.map((canal) => ({
       nombre: canal,
       gasto: 0,
@@ -225,6 +229,7 @@ export default async function VentasPage({
     const gastoPrev = nombre === "Publi a VSL" ? gastosPrev.vsl
       : nombre === "ADS Mje IG" ? gastosPrev.ig
       : nombre === "FMA" ? gastosPrev.fma
+      : nombre === "Form" ? gastosPrev.form
       : 0;
     const s            = closingStats(reunionesPrev.filter(def.match));
     const costReu      = s.total > 0 && gastoPrev > 0 ? gastoPrev / s.total : null;
