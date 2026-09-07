@@ -175,8 +175,10 @@ export default async function SettingPage({
   const reunVSL   = reuniones.filter((r) => r["Canal"] === "Publi a VSL");
   const reunIG    = reuniones.filter((r) => r["Canal"] === "ADS Mje IG");
   const reunFMA   = reuniones.filter((r) => isFMACanal(r["Canal"]));
+  const reunForm  = reuniones.filter((r) => r["Canal"].trim().toLowerCase() === "form");
   const reunOtros = reuniones.filter(
-    (r) => r["Canal"] !== "Publi a VSL" && r["Canal"] !== "ADS Mje IG" && !isFMACanal(r["Canal"]) && r["Canal"]?.trim()
+    (r) => r["Canal"] !== "Publi a VSL" && r["Canal"] !== "ADS Mje IG" && !isFMACanal(r["Canal"]) &&
+           r["Canal"].trim().toLowerCase() !== "form" && r["Canal"]?.trim()
   );
 
   // Prev period reuniones
@@ -184,6 +186,7 @@ export default async function SettingPage({
   const reunVSLPrev  = reunPrev.filter((r) => r["Canal"] === "Publi a VSL");
   const reunIGPrev   = reunPrev.filter((r) => r["Canal"] === "ADS Mje IG");
   const reunFMAPrev  = reunPrev.filter((r) => isFMACanal(r["Canal"]));
+  const reunFormPrev = reunPrev.filter((r) => r["Canal"].trim().toLowerCase() === "form");
 
   const cpa = (gasto: number, ag: number) => ag > 0 && gasto > 0 ? gasto / ag : null;
 
@@ -601,20 +604,17 @@ export default async function SettingPage({
             </thead>
             <tbody>
               {[
-                { nombre: "VSL",    gasto: gastoVSL,  gastoPrev: gastoVSLPrev, rows: reunVSL,  rowsPrev: reunVSLPrev },
-                { nombre: "MSG IG", gasto: gastoIG,   gastoPrev: gastoIGPrev,  rows: reunIG,   rowsPrev: reunIGPrev  },
-                { nombre: "FMA",    gasto: gastoFMA,  gastoPrev: gastoFMAPrev, rows: reunFMA,  rowsPrev: reunFMAPrev },
-                ...otrasCanalesNames.map((canal) => {
-                  const cLower = canal.trim().toLowerCase();
-                  const isForm = cLower === "form";
-                  return {
-                    nombre: canal,
-                    gasto: isForm ? gastoFORM : 0,
-                    gastoPrev: isForm ? gastoFORMPrev : 0,
-                    rows: reuniones.filter((r) => r["Canal"].trim() === canal),
-                    rowsPrev: reunPrev.filter((r) => r["Canal"].trim() === canal),
-                  };
-                }),
+                { nombre: "VSL",    gasto: gastoVSL,  gastoPrev: gastoVSLPrev,  rows: reunVSL,   rowsPrev: reunVSLPrev  },
+                { nombre: "MSG IG", gasto: gastoIG,   gastoPrev: gastoIGPrev,   rows: reunIG,    rowsPrev: reunIGPrev   },
+                { nombre: "FMA",    gasto: gastoFMA,  gastoPrev: gastoFMAPrev,  rows: reunFMA,   rowsPrev: reunFMAPrev  },
+                { nombre: "Form",   gasto: gastoFORM, gastoPrev: gastoFORMPrev, rows: reunForm,  rowsPrev: reunFormPrev },
+                ...otrasCanalesNames.map((canal) => ({
+                  nombre: canal,
+                  gasto: 0,
+                  gastoPrev: 0,
+                  rows: reuniones.filter((r) => r["Canal"].trim() === canal),
+                  rowsPrev: reunPrev.filter((r) => r["Canal"].trim() === canal),
+                })),
               ].map(({ nombre, gasto, gastoPrev, rows, rowsPrev }) => {
                 const ag   = rows.length;
                 const agP  = rowsPrev.length;
