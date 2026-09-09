@@ -97,7 +97,7 @@ function closingStats(rows: Record<string, string>[]) {
   const sena         = rows.filter((r) => r["Status"].toLowerCase() === "seña hecha").length;
   const ccSpa        = rows.filter((r) => isClosedStatus(r["Status"])).length;
   const downsell     = rows.filter((r) => r["Status"].toLowerCase().includes("downsell")).length;
-  const efectivas    = total - noPres - noShow - cancelados - sena;
+  const efectivas    = total - noPres - noShow - cancelados;
   const cerradosRows = rows.filter((r) => isClosedStatus(r["Status"]) || r["Status"].toLowerCase().includes("downsell"));
   const facturacion  = cerradosRows.reduce((s, r) => s + parseNumES(r["Facturacion"] ?? ""), 0);
   const cashLlamada  = cerradosRows.reduce((s, r) => s + parseNumES(r["Cash Collected"] ?? ""), 0);
@@ -609,7 +609,7 @@ export default async function VentasPage({
           entry.agendas++;
           if (s.includes("no presentado"))                               entry.noPres++;
           else if (s.includes("no show") || s === "cancelado")           entry.nsCanc++;
-          else if (s !== "seña hecha") {
+          else {
             entry.efectivas++;
             if (isClosedStatus(r["Status"])) entry.cierres++;
           }

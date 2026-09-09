@@ -96,11 +96,11 @@ export default async function ResumenPage({
   const cerradosPrev = reunionesPrev.filter((r) => isClosedStatus(r["Status"]));
   const efectivas    = reuniones.filter((r) => {
     const s = (r["Status"] ?? "").toLowerCase();
-    return !s.includes("no presentado") && !s.includes("no show") && s !== "cancelado" && s !== "seña hecha";
+    return !s.includes("no presentado") && !s.includes("no show") && s !== "cancelado";
   });
   const efectivasPrev = reunionesPrev.filter((r) => {
     const s = (r["Status"] ?? "").toLowerCase();
-    return !s.includes("no presentado") && !s.includes("no show") && s !== "cancelado" && s !== "seña hecha";
+    return !s.includes("no presentado") && !s.includes("no show") && s !== "cancelado";
   });
 
   const crPct     = efectivas.length > 0 ? (cerrados.length / efectivas.length) * 100 : 0;

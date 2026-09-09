@@ -673,7 +673,7 @@ export function isClosedStatus(status: string): boolean {
 // Effective = all rows with a reunion date, minus no-shows, cancelled, no-presentados
 export function isEffectiveReunion(status: string): boolean {
   const s = status.toLowerCase();
-  return !s.includes("no show") && !s.includes("cancelado") && !s.includes("no presentado") && s !== "seña hecha";
+  return !s.includes("no show") && !s.includes("cancelado") && !s.includes("no presentado");
 }
 
 export async function getVentasMsgWapp() {
