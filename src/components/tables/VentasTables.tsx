@@ -4,7 +4,7 @@ import { DataTable } from "@/components/ui/DataTable";
 
 function StatusBadge({ value }: { value: string }) {
   const v = value.toLowerCase();
-  const cls = v.includes("confirmado") || v.includes("seña")
+  const cls = v.includes("confirmado") || v.includes("seña pie") || v.includes("señó pie")
     ? "bg-emerald-400/10 text-emerald-400"
     : v.includes("no show") || v.includes("cancelado") || v.includes("no presentado")
     ? "bg-rose-400/10 text-rose-400"
