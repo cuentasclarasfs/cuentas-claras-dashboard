@@ -52,13 +52,14 @@ function fbMetrics(rows: Record<string, string>[]) {
 export default async function ClientesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; asesor?: string; mesDesde?: string; mesHasta?: string }>;
+  searchParams: Promise<{ month?: string; asesor?: string; mesDesde?: string; mesHasta?: string; bajasAsesor?: string }>;
 }) {
   const sp = await searchParams;
   const selectedMonth  = sp.month    ?? currentMonthKey();
   const selectedAsesor = sp.asesor   ?? "";
   const selectedMesDesde = sp.mesDesde ?? "";
   const selectedMesHasta = sp.mesHasta ?? "";
+  const selectedBajasAsesor = sp.bajasAsesor ?? "";
 
   // Feedback is 1 month behind — selected=March → show April feedbacks
   const feedbackMonth = nextMonthKey(selectedMonth);
@@ -174,9 +175,13 @@ export default async function ClientesPage({
   const bajasDesde = selectedMesDesde || `${selY}-01`;
   const bajasHasta = selectedMesHasta || selectedMonth;
 
+  const statusParaBajas = selectedBajasAsesor
+    ? statusRows.filter((r) => r["Consultor"] === selectedBajasAsesor)
+    : statusRows;
+
   const bajasPorMes = (() => {
     const map = new Map<string, { total: number; bajaron: number }>();
-    for (const r of statusFiltrado) {
+    for (const r of statusParaBajas) {
       const key = mesComienzaKey(r["Mes de comienzo"] ?? "");
       if (!key) continue;
       if (key < bajasDesde || key > bajasHasta) continue;
@@ -414,7 +419,7 @@ export default async function ClientesPage({
           <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
             <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500">
               % Bajas por Mes de Inicio
-              {selectedAsesor && <span className="ml-2 normal-case text-brand-400 font-normal text-xs">— {selectedAsesor}</span>}
+              {selectedBajasAsesor && <span className="ml-2 normal-case text-brand-400 font-normal text-xs">— {selectedBajasAsesor}</span>}
             </h2>
             <div className="flex items-center gap-3 flex-wrap">
               <Suspense fallback={null}>
@@ -424,6 +429,7 @@ export default async function ClientesPage({
                   selectedHasta={selectedMesHasta}
                 />
               </Suspense>
+              <AsesorFilter asesores={asesoresStatus} paramName="bajasAsesor" />
             </div>
           </div>
           <div className="card mb-10 overflow-x-auto">

@@ -3,15 +3,15 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
-function AsesorFilterInner({ asesores }: { asesores: string[] }) {
+function AsesorFilterInner({ asesores, paramName = "asesor" }: { asesores: string[]; paramName?: string }) {
   const router = useRouter();
   const sp = useSearchParams();
-  const selected = sp.get("asesor") ?? "";
+  const selected = sp.get(paramName) ?? "";
 
   function onChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const params = new URLSearchParams(sp.toString());
-    if (e.target.value) params.set("asesor", e.target.value);
-    else params.delete("asesor");
+    if (e.target.value) params.set(paramName, e.target.value);
+    else params.delete(paramName);
     router.push(`?${params.toString()}`);
   }
 
@@ -29,10 +29,10 @@ function AsesorFilterInner({ asesores }: { asesores: string[] }) {
   );
 }
 
-export function AsesorFilter({ asesores }: { asesores: string[] }) {
+export function AsesorFilter({ asesores, paramName }: { asesores: string[]; paramName?: string }) {
   return (
     <Suspense fallback={<div className="h-8 w-40 bg-surface-800 rounded-lg animate-pulse" />}>
-      <AsesorFilterInner asesores={asesores} />
+      <AsesorFilterInner asesores={asesores} paramName={paramName} />
     </Suspense>
   );
 }
