@@ -169,11 +169,17 @@ export default async function ClientesPage({
   });
 
   // ── % Bajas por mes de inicio ──
+  // Default: desde enero del año en curso hasta el mes seleccionado
+  const [selY] = selectedMonth.split("-").map(Number);
+  const bajasDesde = selectedMesDesde || `${selY}-01`;
+  const bajasHasta = selectedMesHasta || selectedMonth;
+
   const bajasPorMes = (() => {
     const map = new Map<string, { total: number; bajaron: number }>();
     for (const r of statusFiltrado) {
       const key = mesComienzaKey(r["Mes de comienzo"] ?? "");
       if (!key) continue;
+      if (key < bajasDesde || key > bajasHasta) continue;
       const prev = map.get(key) ?? { total: 0, bajaron: 0 };
       map.set(key, {
         total:   prev.total + 1,
@@ -405,10 +411,21 @@ export default async function ClientesPage({
       {/* ── % BAJAS POR MES DE INICIO ── */}
       {bajasPorMes.length > 0 && (
         <>
-          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">
-            % Bajas por Mes de Inicio
-            {selectedAsesor && <span className="ml-2 normal-case text-brand-400 font-normal text-xs">— {selectedAsesor}</span>}
-          </h2>
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500">
+              % Bajas por Mes de Inicio
+              {selectedAsesor && <span className="ml-2 normal-case text-brand-400 font-normal text-xs">— {selectedAsesor}</span>}
+            </h2>
+            <div className="flex items-center gap-3 flex-wrap">
+              <Suspense fallback={null}>
+                <MesComienzFilter
+                  meses={allMesKeys}
+                  selectedDesde={selectedMesDesde}
+                  selectedHasta={selectedMesHasta}
+                />
+              </Suspense>
+            </div>
+          </div>
           <div className="card mb-10 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
