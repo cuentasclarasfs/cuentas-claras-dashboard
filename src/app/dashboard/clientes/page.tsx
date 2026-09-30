@@ -168,6 +168,30 @@ export default async function ClientesPage({
     return true;
   });
 
+  // ── % Bajas por mes de inicio ──
+  const bajasPorMes = (() => {
+    const map = new Map<string, { total: number; bajaron: number }>();
+    for (const r of statusFiltrado) {
+      const key = mesComienzaKey(r["Mes de comienzo"] ?? "");
+      if (!key) continue;
+      const prev = map.get(key) ?? { total: 0, bajaron: 0 };
+      map.set(key, {
+        total:   prev.total + 1,
+        bajaron: prev.bajaron + (r["Status"] === "Se bajó" ? 1 : 0),
+      });
+    }
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, { total, bajaron }]) => ({
+        key,
+        label: keyToLabel(key),
+        total,
+        bajaron,
+        pct: total > 0 ? (bajaron / total) * 100 : 0,
+      }));
+  })();
+  const bajasTotal = bajasPorMes.reduce((a, r) => ({ total: a.total + r.total, bajaron: a.bajaron + r.bajaron }), { total: 0, bajaron: 0 });
+
   const allRangos = [...new Set(statusParaRango.map(getRango).filter(Boolean))].sort();
   const sinRangoRows = statusParaRango.filter((r) => !getRango(r) && (r["Status"] || "").trim());
 
@@ -377,6 +401,49 @@ export default async function ClientesPage({
           </div>
         </div>
       </div>
+
+      {/* ── % BAJAS POR MES DE INICIO ── */}
+      {bajasPorMes.length > 0 && (
+        <>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">
+            % Bajas por Mes de Inicio
+            {selectedAsesor && <span className="ml-2 normal-case text-brand-400 font-normal text-xs">— {selectedAsesor}</span>}
+          </h2>
+          <div className="card mb-10 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-surface-700">
+                  {["Mes de inicio", "Iniciaron", "Se bajaron", "%"].map((h) => (
+                    <th key={h} className="px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase first:text-left text-right">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {bajasPorMes.map((r) => (
+                  <tr key={r.key} className="border-b border-surface-800/50 hover:bg-surface-800/30">
+                    <td className="px-4 py-2.5 font-medium text-slate-300">{r.label}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-white font-semibold">{r.total}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-rose-400 font-semibold">{r.bajaron || "—"}</td>
+                    <td className={`px-4 py-2.5 text-right tabular-nums font-semibold ${r.pct >= 30 ? "text-rose-400" : r.pct >= 20 ? "text-amber-400" : "text-emerald-400"}`}>
+                      {r.bajaron > 0 ? `${r.pct.toFixed(0)}%` : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-surface-800/40 border-t border-surface-600/50">
+                  <td className="px-4 py-2.5 font-bold text-white">Total</td>
+                  <td className="px-4 py-2.5 text-right font-bold tabular-nums text-white">{bajasTotal.total}</td>
+                  <td className="px-4 py-2.5 text-right font-bold tabular-nums text-rose-400">{bajasTotal.bajaron}</td>
+                  <td className={`px-4 py-2.5 text-right font-bold tabular-nums ${bajasTotal.total > 0 && (bajasTotal.bajaron/bajasTotal.total)*100 >= 30 ? "text-rose-400" : "text-amber-400"}`}>
+                    {bajasTotal.total > 0 ? `${((bajasTotal.bajaron / bajasTotal.total) * 100).toFixed(0)}%` : "—"}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </>
+      )}
 
       {/* ── PERMANENCIA DE CLIENTES ── */}
       {(globalMesesPromedio !== null || estadisticasFiltradas.length > 0) && (
