@@ -84,7 +84,7 @@ function SalesPeriodPickerInner({ from, to }: { from?: string; to?: string }) {
     const p = new URLSearchParams(searchParams.toString());
     p.set("from", f);
     p.set("to", t);
-    router.push(`?${p.toString()}`);
+    router.push(`?${p.toString()}`, { scroll: false });
   }
 
   function selectPeriod(period: Period) {

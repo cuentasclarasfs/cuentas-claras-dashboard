@@ -18,7 +18,7 @@ export function MesComienzFilter({ meses, selectedDesde, selectedHasta }: Props)
     const params = new URLSearchParams(sp.toString());
     if (desde) params.set("mesDesde", desde); else params.delete("mesDesde");
     if (hasta) params.set("mesHasta", hasta); else params.delete("mesHasta");
-    router.push(`?${params.toString()}`);
+    router.push(`?${params.toString()}`, { scroll: false });
   }
 
   const selectClass =

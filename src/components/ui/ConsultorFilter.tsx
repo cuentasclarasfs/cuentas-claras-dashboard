@@ -20,7 +20,7 @@ export function ConsultorFilter({ consultores, paramKey = "consultor", label }: 
     } else {
       params.delete(paramKey);
     }
-    router.push(`?${params.toString()}`);
+    router.push(`?${params.toString()}`, { scroll: false });
   }
 
   return (

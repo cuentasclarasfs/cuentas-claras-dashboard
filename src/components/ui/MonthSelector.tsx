@@ -14,7 +14,7 @@ function MonthSelectorInner({ selected }: { selected: string }) {
   const setMonth = (m: string) => {
     const sp = new URLSearchParams(params.toString());
     sp.set("month", m);
-    router.push(`${pathname}?${sp.toString()}`);
+    router.push(`${pathname}?${sp.toString()}`, { scroll: false });
   };
 
   const months: { key: string; label: string }[] = [];

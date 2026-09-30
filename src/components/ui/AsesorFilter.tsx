@@ -12,7 +12,7 @@ function AsesorFilterInner({ asesores, paramName = "asesor" }: { asesores: strin
     const params = new URLSearchParams(sp.toString());
     if (e.target.value) params.set(paramName, e.target.value);
     else params.delete(paramName);
-    router.push(`?${params.toString()}`);
+    router.push(`?${params.toString()}`, { scroll: false });
   }
 
   return (

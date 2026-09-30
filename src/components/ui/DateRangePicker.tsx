@@ -13,7 +13,7 @@ function DateRangePickerInner({ from, to }: { from?: string; to?: string }) {
     const sp = new URLSearchParams(params.toString());
     if (value) sp.set(key, value);
     else sp.delete(key);
-    router.push(`${pathname}?${sp.toString()}`);
+    router.push(`${pathname}?${sp.toString()}`, { scroll: false });
   };
 
   return (
@@ -40,7 +40,7 @@ function DateRangePickerInner({ from, to }: { from?: string; to?: string }) {
             const sp = new URLSearchParams(params.toString());
             sp.delete("from");
             sp.delete("to");
-            router.push(`${pathname}?${sp.toString()}`);
+            router.push(`${pathname}?${sp.toString()}`, { scroll: false });
           }}
           className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
         >
