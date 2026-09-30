@@ -175,6 +175,16 @@ export default async function ClientesPage({
   const bajasDesde = selectedMesDesde || `${selY}-01`;
   const bajasHasta = selectedMesHasta || selectedMonth;
 
+  const asesoresParaBajas = [...new Set(
+    statusRows
+      .filter((r) => {
+        const key = mesComienzaKey(r["Mes de comienzo"] ?? "");
+        return key && key >= bajasDesde && key <= bajasHasta;
+      })
+      .map((r) => r["Consultor"])
+      .filter(Boolean)
+  ) as Set<string>].sort();
+
   const statusParaBajas = selectedBajasAsesor
     ? statusRows.filter((r) => r["Consultor"] === selectedBajasAsesor)
     : statusRows;
@@ -429,7 +439,7 @@ export default async function ClientesPage({
                   selectedHasta={selectedMesHasta}
                 />
               </Suspense>
-              <AsesorFilter asesores={asesoresStatus} paramName="bajasAsesor" />
+              <AsesorFilter asesores={asesoresParaBajas} paramName="bajasAsesor" />
             </div>
           </div>
           <div className="card mb-10 overflow-x-auto">
