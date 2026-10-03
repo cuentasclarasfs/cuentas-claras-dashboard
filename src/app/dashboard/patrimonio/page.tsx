@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { PatrimonioChart } from "@/components/patrimonio/PatrimonioChart";
 import { RiskPieChart } from "@/components/patrimonio/RiskPieChart";
 import { AccionesCartera } from "@/components/patrimonio/AccionesCartera";
+import { PatrimonioTabla } from "@/components/patrimonio/PatrimonioTabla";
 
 export const revalidate = 0;
 
@@ -187,62 +188,7 @@ export default async function PatrimonioPage() {
 
       {/* ── Detalle de activos ── */}
       <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Composición actual</h2>
-      <div className="card mb-8">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-surface-700">
-                {["Activo", "Clase", "Moneda", "Cantidad", "Precio", "Valor USD", "% Total", "Riesgo", "País"].map((h) => (
-                  <th key={h} className="px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase text-left first:text-left">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {assets
-                .sort((a, b) => b.valorUSD - a.valorUSD)
-                .map((a, i) => (
-                  <tr key={i} className="border-b border-surface-800/50 hover:bg-surface-800/30">
-                    <td className="px-3 py-2 font-medium text-white">{a.activo}</td>
-                    <td className="px-3 py-2 text-slate-400 text-xs">{a.clase}</td>
-                    <td className="px-3 py-2 text-slate-400 text-xs text-center">{a.moneda}</td>
-                    <td className="px-3 py-2 tabular-nums text-slate-400 text-right text-xs">
-                      {a.cantidad > 0 ? a.cantidad.toLocaleString("en-US", { maximumFractionDigits: 4 }) : "—"}
-                    </td>
-                    <td className="px-3 py-2 tabular-nums text-slate-400 text-right text-xs">
-                      {a.precioUSD > 1 ? usd(a.precioUSD) : a.precioUSD > 0 ? a.precioUSD.toFixed(4) : "—"}
-                    </td>
-                    <td className="px-3 py-2 tabular-nums font-semibold text-white text-right">
-                      {usd(a.valorUSD)}
-                    </td>
-                    <td className="px-3 py-2 tabular-nums text-slate-400 text-right text-xs">
-                      {pct(a.pctTotal)}
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                        a.riesgo === "ALTO"
-                          ? "text-rose-400"
-                          : a.riesgo === "ACTIVO FIJO"
-                          ? "text-slate-500"
-                          : a.riesgo === "MEDIO"
-                          ? "text-amber-400"
-                          : "text-emerald-400"
-                      }`}>{a.riesgo}</span>
-                    </td>
-                    <td className="px-3 py-2 text-slate-400 text-xs text-center">{a.pais || "—"}</td>
-                  </tr>
-                ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t border-surface-600/60 bg-surface-800/40">
-                <td className="px-3 py-2.5 font-bold text-white" colSpan={5}>Total</td>
-                <td className="px-3 py-2.5 font-bold tabular-nums text-white text-right">{usd(totalPatrimonio)}</td>
-                <td className="px-3 py-2.5 font-bold text-white text-right text-xs">100%</td>
-                <td colSpan={2} />
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
+      <PatrimonioTabla assets={assets} totalPatrimonio={totalPatrimonio} />
 
       {/* ── Evolución mensual ── */}
       <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">
