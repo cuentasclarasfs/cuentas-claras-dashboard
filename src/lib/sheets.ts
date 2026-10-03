@@ -789,8 +789,7 @@ export async function getVentasComisiones(): Promise<Record<string, string>[]> {
 
 export async function getStatusClientes() {
   const rows = await getSheet(process.env.SHEET_ID_STATUS_CLIENTES!, "Status y pago!A:P");
-  // Row 1 = last update date (A1), Row 2 = headers, Row 3+ = data
-  return rowsToObjects(rows.slice(1));
+  return rowsToObjects(rows);
 }
 
 export async function getHistorialClientes() {
