@@ -190,28 +190,39 @@ export default async function ClientesPage({
     : statusRows;
 
   const bajasPorMes = (() => {
-    const map = new Map<string, { total: number; bajaron: number }>();
+    const map = new Map<string, { total: number; bajaron: number; renovaron: number }>();
     for (const r of statusParaBajas) {
       const key = mesComienzaKey(r["Mes de comienzo"] ?? "");
       if (!key) continue;
       if (key < bajasDesde || key > bajasHasta) continue;
-      const prev = map.get(key) ?? { total: 0, bajaron: 0 };
+      const s = r["Status"] ?? "";
+      const prev = map.get(key) ?? { total: 0, bajaron: 0, renovaron: 0 };
       map.set(key, {
-        total:   prev.total + 1,
-        bajaron: prev.bajaron + (r["Status"] === "Se bajó" ? 1 : 0),
+        total:     prev.total + 1,
+        bajaron:   prev.bajaron   + (s === "Se bajó" ? 1 : 0),
+        renovaron: prev.renovaron + (s === "Renovado" || s === "Renovó y se fue" ? 1 : 0),
       });
     }
     return [...map.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, { total, bajaron }]) => ({
-        key,
-        label: keyToLabel(key),
-        total,
-        bajaron,
-        pct: total > 0 ? (bajaron / total) * 100 : 0,
-      }));
+      .map(([key, { total, bajaron, renovaron }]) => {
+        const conChances = total - bajaron;
+        return {
+          key,
+          label: keyToLabel(key),
+          total,
+          bajaron,
+          renovaron,
+          conChances,
+          tasaRenovacion: conChances > 0 ? (renovaron / conChances) * 100 : null,
+        };
+      });
   })();
-  const bajasTotal = bajasPorMes.reduce((a, r) => ({ total: a.total + r.total, bajaron: a.bajaron + r.bajaron }), { total: 0, bajaron: 0 });
+  const bajasTotal = bajasPorMes.reduce(
+    (a, r) => ({ total: a.total + r.total, bajaron: a.bajaron + r.bajaron, renovaron: a.renovaron + r.renovaron }),
+    { total: 0, bajaron: 0, renovaron: 0 }
+  );
+  const bajasTotalConChances = bajasTotal.total - bajasTotal.bajaron;
 
   const allRangos = [...new Set(statusParaRango.map(getRango).filter(Boolean))].sort();
   const sinRangoRows = statusParaRango.filter((r) => !getRango(r) && (r["Status"] || "").trim());
@@ -446,7 +457,7 @@ export default async function ClientesPage({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-surface-700">
-                  {["Mes de inicio", "Iniciaron", "Se bajaron", "%"].map((h) => (
+                  {["Mes de inicio", "Iniciaron", "Se bajaron", "% Baja", "Con chances", "Renovaron", "Tasa renov."].map((h) => (
                     <th key={h} className="px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase first:text-left text-right">{h}</th>
                   ))}
                 </tr>
@@ -457,8 +468,13 @@ export default async function ClientesPage({
                     <td className="px-4 py-2.5 font-medium text-slate-300">{r.label}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums text-white font-semibold">{r.total}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums text-rose-400 font-semibold">{r.bajaron || "—"}</td>
-                    <td className={`px-4 py-2.5 text-right tabular-nums font-semibold ${r.pct >= 30 ? "text-rose-400" : r.pct >= 20 ? "text-amber-400" : "text-emerald-400"}`}>
-                      {r.bajaron > 0 ? `${r.pct.toFixed(0)}%` : "—"}
+                    <td className={`px-4 py-2.5 text-right tabular-nums font-semibold ${r.bajaron === 0 ? "text-slate-500" : (r.bajaron/r.total)*100 >= 30 ? "text-rose-400" : (r.bajaron/r.total)*100 >= 20 ? "text-amber-400" : "text-emerald-400"}`}>
+                      {r.bajaron > 0 ? `${((r.bajaron/r.total)*100).toFixed(0)}%` : "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-300">{r.conChances}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-purple-400 font-semibold">{r.renovaron || "—"}</td>
+                    <td className={`px-4 py-2.5 text-right tabular-nums font-semibold ${r.tasaRenovacion === null ? "text-slate-500" : r.tasaRenovacion >= 30 ? "text-emerald-400" : r.tasaRenovacion >= 20 ? "text-amber-400" : "text-rose-400"}`}>
+                      {r.tasaRenovacion !== null && r.conChances > 0 ? `${r.tasaRenovacion.toFixed(0)}%` : "—"}
                     </td>
                   </tr>
                 ))}
@@ -467,9 +483,14 @@ export default async function ClientesPage({
                 <tr className="bg-surface-800/40 border-t border-surface-600/50">
                   <td className="px-4 py-2.5 font-bold text-white">Total</td>
                   <td className="px-4 py-2.5 text-right font-bold tabular-nums text-white">{bajasTotal.total}</td>
-                  <td className="px-4 py-2.5 text-right font-bold tabular-nums text-rose-400">{bajasTotal.bajaron}</td>
+                  <td className="px-4 py-2.5 text-right font-bold tabular-nums text-rose-400">{bajasTotal.bajaron || "—"}</td>
                   <td className={`px-4 py-2.5 text-right font-bold tabular-nums ${bajasTotal.total > 0 && (bajasTotal.bajaron/bajasTotal.total)*100 >= 30 ? "text-rose-400" : "text-amber-400"}`}>
-                    {bajasTotal.total > 0 ? `${((bajasTotal.bajaron / bajasTotal.total) * 100).toFixed(0)}%` : "—"}
+                    {bajasTotal.total > 0 ? `${((bajasTotal.bajaron/bajasTotal.total)*100).toFixed(0)}%` : "—"}
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-bold tabular-nums text-slate-300">{bajasTotalConChances}</td>
+                  <td className="px-4 py-2.5 text-right font-bold tabular-nums text-purple-400">{bajasTotal.renovaron || "—"}</td>
+                  <td className={`px-4 py-2.5 text-right font-bold tabular-nums ${bajasTotalConChances > 0 && (bajasTotal.renovaron/bajasTotalConChances)*100 >= 30 ? "text-emerald-400" : "text-amber-400"}`}>
+                    {bajasTotalConChances > 0 ? `${((bajasTotal.renovaron/bajasTotalConChances)*100).toFixed(0)}%` : "—"}
                   </td>
                 </tr>
               </tfoot>
