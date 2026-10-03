@@ -275,8 +275,8 @@ export default async function SettingPage({
   const fmaMetricasPer  = fmaRawData.filter((r) => inR(r["Fecha"] ?? ""));
   const fmaMetricasPrevP = fmaRawData.filter((r) => inRPrev(r["Fecha"] ?? ""));
 
-  const fmaSeguidores     = fmaMetricasPer.reduce((s, r) => s + (parseInt(r["Seguidores Ads Man"]) || 0) + (parseInt(r["Seguidores Many"]) || 0), 0);
-  const fmaSeguidoresPrev = fmaMetricasPrevP.reduce((s, r) => s + (parseInt(r["Seguidores Ads Man"]) || 0) + (parseInt(r["Seguidores Many"]) || 0), 0);
+  const fmaSeguidores     = fmaMetricasPer.reduce((s, r) => s + (parseInt(r["Seguidores Many"]) || 0), 0);
+  const fmaSeguidoresPrev = fmaMetricasPrevP.reduce((s, r) => s + (parseInt(r["Seguidores Many"]) || 0), 0);
   const fmaCmtLeads       = fmaMetricasPer.reduce((s, r) => s + (parseInt(r["Comentarios"]) || 0), 0);
   // Leads del ecosistema FMA: Comentarios FMA + Outbound + Historias
   const fmaEcoLeads       = fmaCmtLeads + tienenNegocio + historiasLeads;
