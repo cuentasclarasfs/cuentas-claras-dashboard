@@ -11,7 +11,7 @@ const PAIS_COLORS: Record<string, string> = {
   "Resto del Mundo":  "#8b5cf6",
   "Europa":           "#f97316",
   "Brasil":           "#f43f5e",
-  "Global":           "#22d3ee",
+  "Global":           "#84cc16",
   "CSPX":             "#a78bfa",
 };
 const FALLBACK_COLORS = ["#64748b", "#94a3b8", "#475569", "#334155", "#1e293b"];
