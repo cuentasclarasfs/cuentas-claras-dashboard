@@ -78,7 +78,7 @@ function diffArrow(curr: number, prev: number, lowerIsBetter = false) {
   return { good, text: `${d > 0 ? "+" : ""}${d.toFixed(0)}%` };
 }
 
-const FMA_CANALES = ["Outbound", "Organico", "Comentarios", "Link Perfil", "VSL Insta"];
+const FMA_CANALES = ["Outbound", "Organico", "Comentarios", "Link Perfil", "VSL Insta", "Historias"];
 const isFMA = (canal: string) => FMA_CANALES.some((c) => canal.toLowerCase().includes(c.toLowerCase()));
 const CLOSERS = ["Agus", "Foli", "Santi", "Pit", "Joan"];
 

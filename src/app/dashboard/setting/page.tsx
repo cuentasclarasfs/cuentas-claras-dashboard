@@ -101,7 +101,7 @@ function VarBadge({ curr, prev, lowerBetter = false }: { curr: number; prev: num
 }
 
 const LEAD_TIPOS = ["A", "B", "C", "D"] as const;
-const FMA_CANALES_LIST = ["Outbound", "Organico", "Comentarios", "Link Perfil", "VSL Insta"] as const;
+const FMA_CANALES_LIST = ["Outbound", "Organico", "Comentarios", "Link Perfil", "VSL Insta", "Historias"] as const;
 const isFMACanal = (canal: string) =>
   FMA_CANALES_LIST.some((c) => canal.toLowerCase().includes(c.toLowerCase()));
 
