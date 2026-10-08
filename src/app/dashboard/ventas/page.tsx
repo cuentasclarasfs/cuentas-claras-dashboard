@@ -71,6 +71,21 @@ function pct(n: number, total: number, decimals = 1) {
   return total > 0 ? ((n / total) * 100).toFixed(decimals) + "%" : "—";
 }
 
+function CcSpaTooltip({ ccSpa, cc, spa, color = "text-emerald-400" }: { ccSpa: number; cc: number; spa: number; color?: string }) {
+  return (
+    <span className="relative group/tt cursor-default inline-block">
+      <span className={`font-bold ${color}`}>{ccSpa}</span>
+      {ccSpa > 0 && (
+        <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/tt:flex flex-col items-start bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 shadow-xl z-20 whitespace-nowrap text-left">
+          <span className="text-[10px] text-slate-500 uppercase tracking-wide mb-1.5">Desglose</span>
+          <span className="text-xs text-slate-300">CC <span className="font-bold text-white ml-1">{cc}</span></span>
+          <span className="text-xs text-slate-300 mt-0.5">SPA <span className="font-bold text-white ml-1">{spa}</span></span>
+        </span>
+      )}
+    </span>
+  );
+}
+
 function diffArrow(curr: number, prev: number, lowerIsBetter = false) {
   if (prev === 0 || curr === 0) return null;
   const d = ((curr - prev) / prev) * 100;
@@ -96,7 +111,9 @@ function closingStats(rows: Record<string, string>[]) {
   const cancelados   = rows.filter((r) => r["Status"].toLowerCase() === "cancelado").length;
   const noShow       = rows.filter((r) => r["Status"].toLowerCase().includes("no show")).length;
   const sena         = rows.filter((r) => r["Status"].toLowerCase() === "seña hecha").length;
-  const ccSpa        = rows.filter((r) => isClosedStatus(r["Status"])).length;
+  const cc           = rows.filter((r) => r["Status"].toLowerCase().includes("cliente confirmado")).length;
+  const spa          = rows.filter((r) => r["Status"].toLowerCase().includes("seña pie adentro") || r["Status"].toLowerCase().includes("señó pie adentro")).length;
+  const ccSpa        = cc + spa;
   const downsell     = rows.filter((r) => r["Status"].toLowerCase().includes("downsell")).length;
   const efectivas    = total - noPres - noShow - cancelados;
   const cerradosRows = rows.filter((r) => isClosedStatus(r["Status"]) || r["Status"].toLowerCase().includes("downsell"));
@@ -109,7 +126,7 @@ function closingStats(rows: Record<string, string>[]) {
   // Días hasta agenda — mediana solo de los que cerraron
   const diasVals     = cerradosRows.map((r) => parseFloat(r["Dias hasta agenda"] ?? "")).filter((v) => isFinite(v) && v >= 0);
   const diasMediana  = mediana(diasVals);
-  return { total, noPres, cancelados, noShow, sena, efectivas, ccSpa, downsell, facturacion, cashLlamada, aovPromedio, aovTotal, diasMediana };
+  return { total, noPres, cancelados, noShow, sena, efectivas, cc, spa, ccSpa, downsell, facturacion, cashLlamada, aovPromedio, aovTotal, diasMediana };
 }
 
 // ── page ──────────────────────────────────────────────────────────────────────
@@ -343,9 +360,9 @@ export default async function VentasPage({
                         {dNsCan && <span className={`text-xs ml-1 ${dNsCan.good ? "text-emerald-400" : "text-rose-400"}`}>{dNsCan.good?"▼":"▲"}{Math.abs(parseFloat(dNsCan.text))}pp</span>}
                       </td>
                       <td className="px-3 py-3 text-center text-slate-300">{c.efectivas} <span className="text-xs text-slate-500">({pct(c.efectivas, c.total, 0)})</span></td>
-                      {/* CC/SPA — count only */}
-                      <td className={`px-3 py-3 text-center font-bold ${ccPctC >= 30 ? "text-emerald-400" : "text-rose-400"}`}>
-                        {c.ccSpa}
+                      {/* CC/SPA — with breakdown tooltip */}
+                      <td className="px-3 py-3 text-center">
+                        <CcSpaTooltip ccSpa={c.ccSpa} cc={c.cc} spa={c.spa} color={ccPctC >= 30 ? "text-emerald-400" : "text-rose-400"} />
                       </td>
                       {/* CR% — colored by threshold + pp vs team average */}
                       <td className={`px-3 py-3 text-center font-bold ${crColor}`}>
@@ -408,7 +425,9 @@ export default async function VentasPage({
                     <td className={`px-3 py-3 text-center font-semibold ${nsCan > 35 ? "text-rose-400" : "text-emerald-400"}`}>{nsCan.toFixed(0)}%</td>
                     <td className="px-3 py-3 text-center text-slate-300">{c.efectivas}</td>
                     <td className="px-3 py-3 text-center text-amber-400">{fmtUSD(c.costEfectiva)}</td>
-                    <td className={`px-3 py-3 text-center font-bold ${c.ccSpa > 0 ? "text-emerald-400" : "text-slate-500"}`}>{c.ccSpa}</td>
+                    <td className="px-3 py-3 text-center">
+                      <CcSpaTooltip ccSpa={c.ccSpa} cc={c.cc} spa={c.spa} color={c.ccSpa > 0 ? "text-emerald-400" : "text-slate-500"} />
+                    </td>
                     <td className={`px-3 py-3 text-center ${c.cr >= 30 ? "text-emerald-400" : c.cr > 0 ? "text-amber-400" : "text-slate-500"}`}>{c.cr.toFixed(0)}%</td>
                     <td className="px-3 py-3 text-center text-amber-400">{fmtUSD(c.cacCanal)}</td>
                     {/* CAC Ant. */}
@@ -441,6 +460,8 @@ export default async function VentasPage({
                   noShow:     canalStats.reduce((s, c) => s + c.noShow,     0),
                   efectivas:  canalStats.reduce((s, c) => s + c.efectivas,  0),
                   ccSpa:      canalStats.reduce((s, c) => s + c.ccSpa,      0),
+                  cc:         canalStats.reduce((s, c) => s + c.cc,         0),
+                  spa:        canalStats.reduce((s, c) => s + c.spa,        0),
                 };
                 const tNsCan   = tot.total > 0 ? ((tot.noShow + tot.cancelados) / tot.total) * 100 : 0;
                 const tCr      = tot.efectivas > 0 ? (tot.ccSpa / tot.efectivas) * 100 : 0;
@@ -497,7 +518,9 @@ export default async function VentasPage({
                       <td className={`px-3 py-3 text-center font-bold ${tNsCan > 35 ? "text-rose-400" : "text-emerald-400"}`}>{tNsCan.toFixed(0)}%</td>
                       <td className="px-3 py-3 text-center font-bold text-white">{tot.efectivas}</td>
                       <td className="px-3 py-3 text-center font-semibold text-amber-400">{fmtUSD(tCostEf)}</td>
-                      <td className={`px-3 py-3 text-center font-bold ${tCr >= 30 ? "text-emerald-400" : "text-rose-400"}`}>{tot.ccSpa}</td>
+                      <td className="px-3 py-3 text-center">
+                        <CcSpaTooltip ccSpa={tot.ccSpa} cc={tot.cc} spa={tot.spa} color={tCr >= 30 ? "text-emerald-400" : "text-rose-400"} />
+                      </td>
                       <td className={`px-3 py-3 text-center font-bold ${tCr >= 30 ? "text-emerald-400" : "text-amber-400"}`}>{tCr.toFixed(0)}%</td>
                       <td className="px-3 py-3 text-center font-semibold text-amber-400">{fmtUSD(tCac)}</td>
                       {/* CAC Ant. for TOTAL */}
@@ -736,6 +759,7 @@ function FRow({
   prevCount, prevPct,
   diffBadge, threshold,
   bg, border, valueColor,
+  ccBreakdown,
 }: {
   w: number; label: string;
   count: number; pctOfTotal: number; pctSuffix?: string;
@@ -743,6 +767,7 @@ function FRow({
   diffBadge: React.ReactNode;
   threshold?: string;
   bg: string; border: string; valueColor: string;
+  ccBreakdown?: { cc: number; spa: number };
 }) {
   return (
     <div className="flex justify-center">
@@ -754,7 +779,20 @@ function FRow({
         <div className="flex-1 min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">{label}</p>
           <div className="flex items-baseline gap-2 flex-wrap">
-            <span className={`text-2xl font-bold tabular-nums ${valueColor}`}>{count}</span>
+            {ccBreakdown ? (
+              <span className="relative group/tt cursor-default inline-block">
+                <span className={`text-2xl font-bold tabular-nums ${valueColor}`}>{count}</span>
+                {count > 0 && (
+                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/tt:flex flex-col items-start bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 shadow-xl z-20 whitespace-nowrap">
+                    <span className="text-[10px] text-slate-500 uppercase tracking-wide mb-1.5">Desglose</span>
+                    <span className="text-xs text-slate-300">CC <span className="font-bold text-white ml-1">{ccBreakdown.cc}</span></span>
+                    <span className="text-xs text-slate-300 mt-0.5">SPA <span className="font-bold text-white ml-1">{ccBreakdown.spa}</span></span>
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span className={`text-2xl font-bold tabular-nums ${valueColor}`}>{count}</span>
+            )}
             <span className={`text-sm tabular-nums ${valueColor} opacity-80`}>
               {pctOfTotal.toFixed(1)}%{pctSuffix ? ` ${pctSuffix}` : ""}
             </span>
@@ -902,6 +940,7 @@ function ClosingFunnel({ curr, prev, prevLabel }: { curr: Stats; prev: Stats; pr
         w={w5} label="CC / SPA"
         count={curr.ccSpa} pctOfTotal={ccPct} pctSuffix="de efect."
         prevCount={prev.ccSpa} prevPct={prevCcPct}
+        ccBreakdown={{ cc: curr.cc, spa: curr.spa }}
         diffBadge={<PpBadge a={ccPct} b={prevCcPct} />}
         threshold={ccT.tag}
         bg={ccT.bg} border={ccT.border} valueColor={ccT.clr}
