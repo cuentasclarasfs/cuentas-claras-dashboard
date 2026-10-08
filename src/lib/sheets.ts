@@ -466,6 +466,23 @@ export async function getMarketingMsgIG() {
   return rowsToObjects(rows);
 }
 
+export async function getMarketingMsgWapp(): Promise<Record<string, string>[]> {
+  const rows = await getSheet(process.env.SHEET_ID_SETTING!, "MSG WAPP!A:N");
+  if (rows.length < 2) return [];
+  return rows.slice(1).filter((r) => r[0]?.trim()).map((row) => ({
+    "Fecha":          row[0]  ?? "",
+    "$":              row[1]  ?? "",  // B — gasto
+    "$ Lead":         row[3]  ?? "",  // D
+    "Leads totales":  row[4]  ?? "",  // E — mensajes enviados
+    "Lead entrante":  row[5]  ?? "",  // F
+    "Respuesta":      row[6]  ?? "",  // G — RESP
+    "Pitch":          row[7]  ?? "",  // H — PITC
+    "Permiso":        row[8]  ?? "",  // I — PERMISO PARA AG
+    "Agenda enviada": row[9]  ?? "",  // J — AGENDA E
+    "Agendado":       row[10] ?? "",  // K — AGENDADO
+  }));
+}
+
 export async function getMarketingFMA() {
   const rows = await getSheet(process.env.SHEET_ID_SETTING!, "FMA!A:N");
   return rowsToObjects(rows);

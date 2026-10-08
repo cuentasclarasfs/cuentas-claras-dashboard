@@ -1,7 +1,7 @@
 import {
   getSettingMsgIG, getSettingMsgIGA, getSettingTiposLeads, getSettingAnalisisFMA, getSettingAnalisisMsgIG,
   getVentasReuniones, isClosedStatus, parseUSD,
-  getMarketingVSL, getMarketingFMA, getMarketingFORM, getContenidoPosteos, getContenidoHistorias,
+  getMarketingVSL, getMarketingFMA, getMarketingFORM, getMarketingMsgWapp, getContenidoPosteos, getContenidoHistorias,
   getComparativaA,
 } from "@/lib/sheets";
 import {
@@ -116,7 +116,7 @@ export default async function SettingPage({
   const range = sp.from && sp.to ? { from: sp.from, to: sp.to } : defaultRange();
   const prev  = prevRange(range.from, range.to);
 
-  const [msgIGRaw, msgIGARaw, tiposLeadsRaw, analisisFMARaw, analisisMsgIGRaw, reunionesRaw, vslRaw, fmaRawData, formRawData, comparativaARaw] = await Promise.all([
+  const [msgIGRaw, msgIGARaw, tiposLeadsRaw, analisisFMARaw, analisisMsgIGRaw, reunionesRaw, vslRaw, fmaRawData, formRawData, comparativaARaw, wappRawData] = await Promise.all([
     getSettingMsgIG(),
     getSettingMsgIGA(),
     getSettingTiposLeads(),
@@ -127,6 +127,7 @@ export default async function SettingPage({
     getMarketingFMA(),
     getMarketingFORM(),
     getComparativaA(),
+    getMarketingMsgWapp(),
   ]);
 
   // Contenido sheets (may not be configured)
@@ -164,27 +165,31 @@ export default async function SettingPage({
   const gastoIG     = msgIG.reduce((s, r) => s + parseUSD(r["Gasto"] ?? ""), 0);
   const gastoFMA    = fmaRawData.filter((r) => inR(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["$"] ?? ""), 0);
   const gastoFORM   = formRawData.filter((r) => inR(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["$"] ?? ""), 0);
+  const gastoWAPP   = wappRawData.filter((r) => inR(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["$"] ?? ""), 0);
   const gastoVSLPrev = vslRaw.filter((r) => inRPrev(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["Gasto"] ?? ""), 0);
   const gastoIGPrev  = msgIGRaw.filter((r) => inRPrev(r["Fecha"])).reduce((s, r) => s + parseUSD(r["Gasto"] ?? ""), 0);
   const gastoFMAPrev = fmaRawData.filter((r) => inRPrev(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["$"] ?? ""), 0);
   const gastoFORMPrev = formRawData.filter((r) => inRPrev(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["$"] ?? ""), 0);
-  const gastoTotal   = gastoVSL + gastoIG + gastoFMA + gastoFORM;
-  const gastoTotalPrev = gastoVSLPrev + gastoIGPrev + gastoFMAPrev + gastoFORMPrev;
+  const gastoWAPPPrev = wappRawData.filter((r) => inRPrev(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["$"] ?? ""), 0);
+  const gastoTotal   = gastoVSL + gastoIG + gastoFMA + gastoFORM + gastoWAPP;
+  const gastoTotalPrev = gastoVSLPrev + gastoIGPrev + gastoFMAPrev + gastoFORMPrev + gastoWAPPPrev;
 
   // Agendas by channel
   const reunVSL   = reuniones.filter((r) => r["Canal"] === "Publi a VSL");
   const reunIG    = reuniones.filter((r) => r["Canal"] === "ADS Mje IG");
+  const reunWAPP  = reuniones.filter((r) => r["Canal"] === "ADS Mje WAPP");
   const reunFMA   = reuniones.filter((r) => isFMACanal(r["Canal"]));
   const reunForm  = reuniones.filter((r) => r["Canal"].trim().toLowerCase() === "form");
   const reunOtros = reuniones.filter(
-    (r) => r["Canal"] !== "Publi a VSL" && r["Canal"] !== "ADS Mje IG" && !isFMACanal(r["Canal"]) &&
-           r["Canal"].trim().toLowerCase() !== "form" && r["Canal"]?.trim()
+    (r) => r["Canal"] !== "Publi a VSL" && r["Canal"] !== "ADS Mje IG" && r["Canal"] !== "ADS Mje WAPP" &&
+           !isFMACanal(r["Canal"]) && r["Canal"].trim().toLowerCase() !== "form" && r["Canal"]?.trim()
   );
 
   // Prev period reuniones
   const reunPrev     = reunionesRaw.filter((r) => r["Prospecto"] && inRPrev(r["Fecha de la agenda"]));
   const reunVSLPrev  = reunPrev.filter((r) => r["Canal"] === "Publi a VSL");
   const reunIGPrev   = reunPrev.filter((r) => r["Canal"] === "ADS Mje IG");
+  const reunWAPPPrev = reunPrev.filter((r) => r["Canal"] === "ADS Mje WAPP");
   const reunFMAPrev  = reunPrev.filter((r) => isFMACanal(r["Canal"]));
   const reunFormPrev = reunPrev.filter((r) => r["Canal"].trim().toLowerCase() === "form");
 
@@ -508,6 +513,20 @@ export default async function SettingPage({
   const fmtUSD = (n: number | null) =>
     n != null && n > 0 ? `$${Math.round(n).toLocaleString()}` : "—";
 
+  // ── SECTION ADS MJE WAPP ─────────────────────────────────────────────────
+  const msgWapp        = wappRawData.filter((r) => inR(r["Fecha"] ?? ""));
+  const wappInversion  = msgWapp.reduce((s, r) => s + parseUSD(r["$"]), 0);
+  const wappMensajes   = msgWapp.reduce((s, r) => s + (parseInt(r["Leads totales"]) || 0), 0);
+  const wappAgendados  = msgWapp.reduce((s, r) => s + (parseInt(r["Agendado"]) || 0), 0);
+  const wappCierresSheet = msgWapp.reduce((s, r) => s + (parseInt(r["Cierres"] ?? "") || 0), 0);
+  const reunWAPPArr    = byCanal("ADS Mje WAPP");
+  const wappCierresReun = reunWAPPArr.filter((r) => isClosedStatus(r["Status"])).length;
+  const wappCierres    = wappCierresReun > 0 ? wappCierresReun : wappCierresSheet;
+  const wappAgendas    = reunWAPPArr.length > 0 ? reunWAPPArr.length : wappAgendados;
+  const wappCostMsg    = wappMensajes > 0 && wappInversion > 0 ? wappInversion / wappMensajes : null;
+  const wappCostAg     = wappAgendas  > 0 && wappInversion > 0 ? wappInversion / wappAgendas  : null;
+  const wappCostCi     = wappCierres  > 0 && wappInversion > 0 ? wappInversion / wappCierres  : null;
+
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div>
@@ -604,10 +623,11 @@ export default async function SettingPage({
             </thead>
             <tbody>
               {[
-                { nombre: "VSL",    gasto: gastoVSL,  gastoPrev: gastoVSLPrev,  rows: reunVSL,   rowsPrev: reunVSLPrev  },
-                { nombre: "MSG IG", gasto: gastoIG,   gastoPrev: gastoIGPrev,   rows: reunIG,    rowsPrev: reunIGPrev   },
-                { nombre: "FMA",    gasto: gastoFMA,  gastoPrev: gastoFMAPrev,  rows: reunFMA,   rowsPrev: reunFMAPrev  },
-                { nombre: "Form",   gasto: gastoFORM, gastoPrev: gastoFORMPrev, rows: reunForm,  rowsPrev: reunFormPrev },
+                { nombre: "VSL",          gasto: gastoVSL,  gastoPrev: gastoVSLPrev,  rows: reunVSL,   rowsPrev: reunVSLPrev   },
+                { nombre: "MSG IG",       gasto: gastoIG,   gastoPrev: gastoIGPrev,   rows: reunIG,    rowsPrev: reunIGPrev    },
+                { nombre: "MSG WAPP",     gasto: gastoWAPP, gastoPrev: gastoWAPPPrev, rows: reunWAPP,  rowsPrev: reunWAPPPrev  },
+                { nombre: "FMA",          gasto: gastoFMA,  gastoPrev: gastoFMAPrev,  rows: reunFMA,   rowsPrev: reunFMAPrev   },
+                { nombre: "Form",         gasto: gastoFORM, gastoPrev: gastoFORMPrev, rows: reunForm,  rowsPrev: reunFormPrev  },
                 ...otrasCanalesNames.map((canal) => ({
                   nombre: canal,
                   gasto: 0,
@@ -645,8 +665,8 @@ export default async function SettingPage({
               })}
               {/* TOTAL */}
               {(() => {
-                const ag  = reunVSL.length + reunIG.length + reunFMA.length + reunOtros.length;
-                const agP = reunVSLPrev.length + reunIGPrev.length + reunFMAPrev.length;
+                const ag  = reunVSL.length + reunIG.length + reunWAPP.length + reunFMA.length + reunOtros.length;
+                const agP = reunVSLPrev.length + reunIGPrev.length + reunWAPPPrev.length + reunFMAPrev.length;
                 const c   = cpa(gastoTotal, ag);
                 const cP  = cpa(gastoTotalPrev, agP);
                 return (
@@ -1440,6 +1460,58 @@ export default async function SettingPage({
           <p className="mt-3 text-[10px] text-slate-600">
             Los valores son acumulativos: cada etapa incluye a todos los que llegaron a esa etapa o más avanzada.
           </p>
+        </div>
+      </div>
+
+      {/* ── 8. ADS MJE WAPP ── */}
+      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 mt-8">ADS MJE WAPP</h2>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {/* Inversión */}
+        <div className="card p-4">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Inversión</p>
+          <p className="text-2xl font-bold text-brand-400">{fmtUSD(wappInversion) !== "—" ? fmtUSD(wappInversion) : <span className="text-slate-600">—</span>}</p>
+          {gastoWAPPPrev > 0 && (
+            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+              ant: {fmtUSD(gastoWAPPPrev)}
+              <VarBadge curr={wappInversion} prev={gastoWAPPPrev} lowerBetter />
+            </p>
+          )}
+        </div>
+        {/* Mensajes */}
+        <div className="card p-4">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Mensajes</p>
+          <p className="text-2xl font-bold text-white">{wappMensajes > 0 ? wappMensajes.toLocaleString() : "—"}</p>
+          {wappCostMsg && (
+            <p className="text-[11px] text-amber-400 mt-0.5">{fmtUSD(wappCostMsg)} / msg</p>
+          )}
+        </div>
+        {/* Agendas */}
+        <div className="card p-4">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Agendas</p>
+          <p className="text-2xl font-bold text-white">{wappAgendas > 0 ? wappAgendas : "—"}</p>
+          {wappCostAg && (
+            <p className="text-[11px] text-amber-400 mt-0.5">{fmtUSD(wappCostAg)} / agenda</p>
+          )}
+          {reunWAPPArr.length > 0 && (
+            <p className="text-[10px] text-slate-600 mt-0.5">desde Resumen Reuniones</p>
+          )}
+          {reunWAPPPrev.length > 0 && (
+            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+              ant: {reunWAPPPrev.length}
+              <VarBadge curr={wappAgendas} prev={reunWAPPPrev.length} />
+            </p>
+          )}
+        </div>
+        {/* Cierres */}
+        <div className="card p-4">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Cierres</p>
+          <p className="text-2xl font-bold text-emerald-400">{wappCierres > 0 ? wappCierres : "—"}</p>
+          {wappCostCi && (
+            <p className="text-[11px] text-amber-400 mt-0.5">{fmtUSD(wappCostCi)} / cierre</p>
+          )}
+          {wappAgendas > 0 && wappCierres > 0 && (
+            <p className="text-[11px] text-emerald-400 mt-0.5">{pct(wappCierres, wappAgendas)} CR</p>
+          )}
         </div>
       </div>
     </div>

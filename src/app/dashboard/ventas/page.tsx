@@ -1,5 +1,6 @@
 import {
   getVentasReuniones, getMarketingVSL, getMarketingMsgIG, getMarketingFMA, getMarketingFORM,
+  getMarketingMsgWapp,
   isClosedStatus, parseUSD, parseNumES, formatARS,
 } from "@/lib/sheets";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -122,12 +123,13 @@ export default async function VentasPage({
   const range  = sp.from && sp.to ? { from: sp.from, to: sp.to } : defaultRange();
   const prev   = prevRange(range.from, range.to);
 
-  const [reunionesRaw, vslData, igData, fmaData, formData] = await Promise.all([
+  const [reunionesRaw, vslData, igData, fmaData, formData, wappData] = await Promise.all([
     getVentasReuniones(),
     getMarketingVSL(),
     getMarketingMsgIG(),
     getMarketingFMA(),
     getMarketingFORM(),
+    getMarketingMsgWapp(),
   ]);
 
   // ── gastos por período ──
@@ -136,7 +138,8 @@ export default async function VentasPage({
     const ig   = igData  .filter((r) => inDateRange(r["Fecha"] ?? "", f, t)).reduce((s, r) => s + parseUSD(r["$"]    ?? ""), 0);
     const fma  = fmaData .filter((r) => inDateRange(r["Fecha"] ?? "", f, t)).reduce((s, r) => s + parseUSD(r["$"]    ?? ""), 0);
     const form = formData.filter((r) => inDateRange(r["Fecha"] ?? "", f, t)).reduce((s, r) => s + parseUSD(r["$"]    ?? ""), 0);
-    return { vsl, ig, fma, form, total: vsl + ig + fma + form };
+    const wapp = wappData.filter((r) => inDateRange(r["Fecha"] ?? "", f, t)).reduce((s, r) => s + parseUSD(r["$"]    ?? ""), 0);
+    return { vsl, ig, fma, form, wapp, total: vsl + ig + fma + form + wapp };
   }
 
   // ── agendas (col K) ──
@@ -144,9 +147,10 @@ export default async function VentasPage({
     const all  = reunionesRaw.filter((r) => r["Prospecto"] && inDateRange(r["Fecha de la agenda"], f, t));
     const vsl  = all.filter((r) => r["Canal"] === "Publi a VSL");
     const ig   = all.filter((r) => r["Canal"] === "ADS Mje IG");
+    const wapp = all.filter((r) => r["Canal"] === "ADS Mje WAPP");
     const fma  = all.filter((r) => isFMA(r["Canal"]));
-    const otras = all.filter((r) => r["Canal"] !== "Publi a VSL" && r["Canal"] !== "ADS Mje IG" && !isFMA(r["Canal"]));
-    return { all, vsl, ig, fma, otras };
+    const otras = all.filter((r) => r["Canal"] !== "Publi a VSL" && r["Canal"] !== "ADS Mje IG" && r["Canal"] !== "ADS Mje WAPP" && !isFMA(r["Canal"]));
+    return { all, vsl, ig, wapp, fma, otras };
   }
 
   // ── last 6 months ranges ──
@@ -193,8 +197,8 @@ export default async function VentasPage({
   // ── canales (col L + col D) ──
   // Canales "otros": todo lo que no es VSL, ADS Mje IG ni FMA, desglosado individualmente
   const isKnownCanal = (r: Record<string,string>) =>
-    r["Canal"] === "Publi a VSL" || r["Canal"] === "ADS Mje IG" || isFMA(r["Canal"]) ||
-    r["Canal"].trim().toLowerCase() === "form";
+    r["Canal"] === "Publi a VSL" || r["Canal"] === "ADS Mje IG" || r["Canal"] === "ADS Mje WAPP" ||
+    isFMA(r["Canal"]) || r["Canal"].trim().toLowerCase() === "form";
   const otrosCanalesNames = [
     ...new Set(
       [...reuniones, ...reunionesPrev]
@@ -204,10 +208,11 @@ export default async function VentasPage({
   ].sort();
 
   const canalesDef = [
-    { nombre: "Publi a VSL", gasto: gastos.vsl,  match: (r: Record<string,string>) => r["Canal"] === "Publi a VSL" },
-    { nombre: "ADS Mje IG",  gasto: gastos.ig,   match: (r: Record<string,string>) => r["Canal"] === "ADS Mje IG"  },
-    { nombre: "FMA",         gasto: gastos.fma,  match: (r: Record<string,string>) => isFMA(r["Canal"])             },
-    { nombre: "Form",        gasto: gastos.form, match: (r: Record<string,string>) => r["Canal"].trim().toLowerCase() === "form" },
+    { nombre: "Publi a VSL",  gasto: gastos.vsl,  match: (r: Record<string,string>) => r["Canal"] === "Publi a VSL"   },
+    { nombre: "ADS Mje IG",   gasto: gastos.ig,   match: (r: Record<string,string>) => r["Canal"] === "ADS Mje IG"    },
+    { nombre: "ADS Mje WAPP", gasto: gastos.wapp, match: (r: Record<string,string>) => r["Canal"] === "ADS Mje WAPP"  },
+    { nombre: "FMA",          gasto: gastos.fma,  match: (r: Record<string,string>) => isFMA(r["Canal"])               },
+    { nombre: "Form",         gasto: gastos.form, match: (r: Record<string,string>) => r["Canal"].trim().toLowerCase() === "form" },
     ...otrosCanalesNames.map((canal) => ({
       nombre: canal,
       gasto: 0,
