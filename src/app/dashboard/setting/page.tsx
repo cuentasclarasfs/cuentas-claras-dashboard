@@ -532,6 +532,10 @@ export default async function SettingPage({
   const wappCierresReun = reunWAPPArr.filter((r) => isClosedStatus(r["Status"])).length;
   const wappCierres    = wappCierresReun > 0 ? wappCierresReun : wappCierresSheet;
   const wappAgendas    = reunWAPPArr.length > 0 ? reunWAPPArr.length : wappAgendados;
+  const wappPctMsgAg   = wappMensajes > 0 && wappAgendas > 0 ? (wappAgendas / wappMensajes) * 100 : null;
+  const histWappMsj    = wappRawData.reduce((s, r) => s + (parseInt(r["Mensajes"]) || 0), 0);
+  const histWappAg     = wappRawData.reduce((s, r) => s + (parseInt(r["Agendado"]) || 0), 0);
+  const wappHistPct    = histWappMsj > 0 && histWappAg > 0 ? (histWappAg / histWappMsj) * 100 : null;
   const wappCostMsg    = wappMensajes > 0 && wappInversion > 0 ? wappInversion / wappMensajes : null;
   const wappCostAg     = wappAgendas  > 0 && wappInversion > 0 ? wappInversion / wappAgendas  : null;
   const wappCostCi     = wappCierres  > 0 && wappInversion > 0 ? wappInversion / wappCierres  : null;
@@ -1497,6 +1501,14 @@ export default async function SettingPage({
           <p className="text-2xl font-bold text-white">{wappAgendas > 0 ? wappAgendas : "—"}</p>
           {wappCostAg && (
             <p className="text-[11px] text-amber-400 mt-0.5">{fmtUSD(wappCostAg)} / agenda</p>
+          )}
+          {wappPctMsgAg !== null && (
+            <p className="text-[11px] text-sky-400 mt-0.5">
+              {wappPctMsgAg.toFixed(1)}% mjes→ag.
+              {wappHistPct !== null && (
+                <span className="text-slate-500 ml-1">(prom {wappHistPct.toFixed(1)}%)</span>
+              )}
+            </p>
           )}
           {reunWAPPArr.length > 0 && (
             <p className="text-[10px] text-slate-600 mt-0.5">desde Resumen Reuniones</p>
