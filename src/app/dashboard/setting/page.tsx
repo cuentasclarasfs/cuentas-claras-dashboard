@@ -401,10 +401,14 @@ export default async function SettingPage({
   const neg3plus      = sumInt(analisisFMA, "Negocio >3 años");
   const respuestas    = tienenNegocio + noNegocio;
 
-  // Tipo A / B o C desde Analisis MSG IG
+  // Tipo A / B o C desde Analisis MSG IG (para sección ADS IG)
   const analisisMsgIG = analisisMsgIGRaw.filter((r) => inR(r["Fecha"]));
   const msgIGTipoA    = analisisMsgIG.reduce((s, r) => s + (parseFloat(r["TipoA"]    || "0") || 0), 0);
   const msgIGTipoBorC = analisisMsgIG.reduce((s, r) => s + (parseFloat(r["TipoBorC"] || "0") || 0), 0);
+
+  // Tipo A / B o C Outbound desde Analisis FMA (col T y U)
+  const outTipoA    = analisisFMA.reduce((s, r) => s + (parseFloat(r["Tipo A"]   || "0") || 0), 0);
+  const outTipoBorC = analisisFMA.reduce((s, r) => s + (parseFloat(r["Tipo B o C"] || "0") || 0), 0);
   // Weighted average costo tipo A (rows where TipoA > 0)
   const costoTipoARows = analisisMsgIG.filter((r) => parseFloat(r["TipoA"] || "0") > 0 && parseFloat(r["CostoTipoA"] || "0") > 0);
   const costoTipoA = costoTipoARows.length > 0
@@ -1156,30 +1160,27 @@ export default async function SettingPage({
           </div>
 
           {/* Tipo A / B o C */}
-          {(msgIGTipoA > 0 || msgIGTipoBorC > 0) && (
+          {(outTipoA > 0 || outTipoBorC > 0) && (
             <div className="mt-4 pt-4 border-t border-surface-700/40">
               <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-2">Calificación de leads</p>
               <div className="grid grid-cols-2 gap-2 mb-2">
                 <div className="bg-surface-800/50 rounded-lg p-2.5 text-center border border-surface-700/40">
                   <p className="text-[10px] text-slate-500 mb-0.5">Tipo A</p>
-                  <p className="text-lg font-bold text-emerald-400">{msgIGTipoA || "—"}</p>
-                  {costoTipoA !== null && (
-                    <p className="text-[10px] text-slate-500 mt-0.5">${Math.round(costoTipoA).toLocaleString()} c/u</p>
-                  )}
+                  <p className="text-lg font-bold text-emerald-400">{outTipoA || "—"}</p>
                 </div>
                 <div className="bg-surface-800/50 rounded-lg p-2.5 text-center border border-surface-700/40">
                   <p className="text-[10px] text-slate-500 mb-0.5">Tipo B o C</p>
-                  <p className="text-lg font-bold text-slate-400">{msgIGTipoBorC || "—"}</p>
-                  {msgIGTipoA + msgIGTipoBorC > 0 && (
-                    <p className="text-[10px] text-slate-600">{pct(msgIGTipoBorC, msgIGTipoA + msgIGTipoBorC)} del total</p>
+                  <p className="text-lg font-bold text-slate-400">{outTipoBorC || "—"}</p>
+                  {outTipoA + outTipoBorC > 0 && (
+                    <p className="text-[10px] text-slate-600">{pct(outTipoBorC, outTipoA + outTipoBorC)} del total</p>
                   )}
                 </div>
               </div>
               {/* % Tipo A → Agendas */}
               {(() => {
                 const tipoAAgendas = outByTipo.find((t) => t.tipo === "A")?.agendas ?? 0;
-                if (!msgIGTipoA || !tipoAAgendas) return null;
-                const convPct = ((tipoAAgendas / msgIGTipoA) * 100).toFixed(1);
+                if (!outTipoA || !tipoAAgendas) return null;
+                const convPct = ((tipoAAgendas / outTipoA) * 100).toFixed(1);
                 return (
                   <div className="bg-surface-800/30 rounded-lg px-3 py-2 flex items-center justify-between border border-surface-700/30">
                     <p className="text-xs text-slate-400">Tipo A → Agendas</p>

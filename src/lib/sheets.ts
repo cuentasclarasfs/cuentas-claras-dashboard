@@ -554,9 +554,9 @@ export async function getSettingTiposLeads(): Promise<Record<string, string>[]> 
   }));
 }
 
-// Análisis FMA (Outbound) — G=Inicios, K=TienenNeg, N=NoTienenNeg, O=<1a, P=1-3a, Q=>3a
+// Análisis FMA (Outbound) — G=Inicios, K=TienenNeg, N=NoTienenNeg, O=<1a, P=1-3a, Q=>3a, T=TipoA, U=TipoBorC
 export async function getSettingAnalisisFMA(): Promise<Record<string, string>[]> {
-  const rows = await getSheet(process.env.SHEET_ID_SETTING!, "Analisis FMA!A:Q");
+  const rows = await getSheet(process.env.SHEET_ID_SETTING!, "Analisis FMA!A:U");
   if (rows.length < 2) return [];
   return rows.slice(1).filter((r) => r[0]?.trim()).map((row) => ({
     "Fecha":             row[0]  ?? "",
@@ -566,6 +566,8 @@ export async function getSettingAnalisisFMA(): Promise<Record<string, string>[]>
     "Negocio <1 año":    row[14] ?? "",  // O
     "Negocio 1-3 años":  row[15] ?? "",  // P
     "Negocio >3 años":   row[16] ?? "",  // Q
+    "Tipo A":            row[19] ?? "",  // T
+    "Tipo B o C":        row[20] ?? "",  // U
   }));
 }
 
