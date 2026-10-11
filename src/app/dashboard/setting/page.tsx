@@ -234,14 +234,19 @@ export default async function SettingPage({
               (parseInt(r["Tipo C"]) || 0) + (parseInt(r["Tipo D"]) || 0), 0
   );
 
+  const wappMensajesLeads = wappRawData
+    .filter((r) => inR(r["Fecha"] ?? ""))
+    .reduce((s, r) => s + (parseInt(r["Mensajes"]) || 0), 0);
+
   const leadsAnalisis = [
-    { nombre: "ADS IG",      leads: tiposALeads,      canal: "ADS Mje IG",  tipoA: true,  sub: null as string | null },
-    { nombre: "Outbound",    leads: tienenNegocio,    canal: "Outbound",    tipoA: false, sub: null as string | null },
-    { nombre: "Comentarios", leads: comentariosLeads, canal: "Comentarios", tipoA: false,
+    { nombre: "ADS IG",      leads: tiposALeads,        canal: "ADS Mje IG",    tipoA: true,  sub: null as string | null },
+    { nombre: "Outbound",    leads: tienenNegocio,      canal: "Outbound",      tipoA: false, sub: null as string | null },
+    { nombre: "Comentarios", leads: comentariosLeads,   canal: "Comentarios",   tipoA: false,
       sub: (comentariosOrgLeads > 0 || comentariosADSLeads > 0)
         ? `org: ${comentariosOrgLeads} · ads: ${comentariosADSLeads}`
         : null as string | null },
-    { nombre: "Historias",   leads: historiasLeads,   canal: "Historias",   tipoA: false, sub: null as string | null },
+    { nombre: "Historias",   leads: historiasLeads,     canal: "Historias",     tipoA: false, sub: null as string | null },
+    { nombre: "ADS Mje WAPP", leads: wappMensajesLeads, canal: "ADS Mje WAPP", tipoA: false, sub: null as string | null },
   ].map((e) => {
     let rows = byCanal(e.canal);
     // Para ADS IG solo contamos agendas Tipo A
