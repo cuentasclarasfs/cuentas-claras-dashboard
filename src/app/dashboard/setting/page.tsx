@@ -534,7 +534,7 @@ export default async function SettingPage({
   const wappAgendas    = reunWAPPArr.length > 0 ? reunWAPPArr.length : wappAgendados;
   const wappPctMsgAg   = wappMensajes > 0 && wappAgendas > 0 ? (wappAgendas / wappMensajes) * 100 : null;
   const histWappMsj    = wappRawData.reduce((s, r) => s + (parseInt(r["Mensajes"]) || 0), 0);
-  const histWappAg     = wappRawData.reduce((s, r) => s + (parseInt(r["Agendado"]) || 0), 0);
+  const histWappAg     = reunionesRaw.filter((r) => r["Prospecto"] && r["Canal"]?.trim().toLowerCase() === "ads mje wapp").length;
   const wappHistPct    = histWappMsj > 0 && histWappAg > 0 ? (histWappAg / histWappMsj) * 100 : null;
   const wappCostMsg    = wappMensajes > 0 && wappInversion > 0 ? wappInversion / wappMensajes : null;
   const wappCostAg     = wappAgendas  > 0 && wappInversion > 0 ? wappInversion / wappAgendas  : null;
