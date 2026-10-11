@@ -472,8 +472,9 @@ export async function getMarketingMsgWapp(): Promise<Record<string, string>[]> {
   return rows.slice(1).filter((r) => r[0]?.trim()).map((row) => ({
     "Fecha":          row[0]  ?? "",
     "$":              row[1]  ?? "",  // B — gasto
+    "Mensajes":       row[2]  ?? "",  // C — mensajes enviados
     "$ Lead":         row[3]  ?? "",  // D
-    "Leads totales":  row[4]  ?? "",  // E — mensajes enviados
+    "Leads totales":  row[4]  ?? "",  // E
     "Lead entrante":  row[5]  ?? "",  // F
     "Respuesta":      row[6]  ?? "",  // G — RESP
     "Pitch":          row[7]  ?? "",  // H — PITC

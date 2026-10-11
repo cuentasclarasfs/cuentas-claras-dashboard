@@ -520,7 +520,7 @@ export default async function SettingPage({
   // ── SECTION ADS MJE WAPP ─────────────────────────────────────────────────
   const msgWapp        = wappRawData.filter((r) => inR(r["Fecha"] ?? ""));
   const wappInversion  = msgWapp.reduce((s, r) => s + parseUSD(r["$"]), 0);
-  const wappMensajes   = msgWapp.reduce((s, r) => s + (parseInt(r["Leads totales"]) || 0), 0);
+  const wappMensajes   = msgWapp.reduce((s, r) => s + (parseInt(r["Mensajes"]) || 0), 0);
   const wappAgendados  = msgWapp.reduce((s, r) => s + (parseInt(r["Agendado"]) || 0), 0);
   const wappCierresSheet = msgWapp.reduce((s, r) => s + (parseInt(r["Cierres"] ?? "") || 0), 0);
   const reunWAPPArr    = byCanal("ADS Mje WAPP");
