@@ -4,3 +4,5 @@ node_modules/
 .next/
 out/
 *.pem
+.DS_Store
+cuentas-claras-dashboard-*.json
