@@ -5,11 +5,15 @@ import {
   getVentasReuniones, filterReuniones, isClosedStatus, parseNumES,
   getFeedbackData, filterFeedbackByMonth, getOpsMetrics,
   getRenovadosTrend, getCashCollectedTimeSeries, getDevengadosTimeSeries,
+  getMarketingVSL, getMarketingMsgIG, getMarketingFMA, getMarketingFORM, getMarketingMsgWapp,
+  getCashflowCostosEquipo,
   formatARS, currentMonthKey,
 } from "@/lib/sheets";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { KPICard } from "@/components/ui/KPICard";
 import { MonthSelector } from "@/components/ui/MonthSelector";
+import { CacCompletoTable } from "@/components/tables/CacCompletoTable";
+import { calcCacCompleto } from "@/lib/cac";
 import { CashVsDevengadoChart } from "@/components/charts/CashVsDevengadoChart";
 import { RenovadosTrendChart } from "@/components/charts/RenovadosTrendChart";
 import {
@@ -64,6 +68,7 @@ export default async function ResumenPage({
     eerrcc, eerrccPrev, cashflow, gastoMkt, gastoMktPrev,
     reunionesRaw, feedbackRaw, opsMetrics,
     renovadosTrend, cashSeries, devengadoSeries,
+    vslData, igData, fmaData, formData, wappData, costosEquipo,
   ] = await Promise.all([
     getEERRCCForMonth(selectedMonth),
     getEERRCCForMonth(prevMonthKey),
@@ -76,7 +81,19 @@ export default async function ResumenPage({
     getRenovadosTrend(),
     getCashCollectedTimeSeries(),
     getDevengadosTimeSeries(),
+    getMarketingVSL(),
+    getMarketingMsgIG(),
+    getMarketingFMA(),
+    getMarketingFORM(),
+    getMarketingMsgWapp(),
+    getCashflowCostosEquipo(from, to).catch(() => null),
   ]);
+
+  const cacCompleto = calcCacCompleto({
+    from, to, reuniones: reunionesRaw,
+    vsl: vslData, ig: igData, fma: fmaData, form: formData, wapp: wappData,
+    costos: costosEquipo ?? { marketing: 0, setter: 0 },
+  });
 
   // ── Agendas del mes (por fecha de agenda, para CPA) ──
   const agendasMes = reunionesRaw.filter(
@@ -393,6 +410,10 @@ export default async function ResumenPage({
           <RenovadosTrendChart data={renovadosLast12} />
         </div>
       </div>
+
+      {/* ── CAC COMPLETO POR CANAL ── */}
+      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">CAC completo por canal — {mesLabel}</h2>
+      <CacCompletoTable data={cacCompleto} costosOk={costosEquipo !== null} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import {
   getVentasReuniones, getMarketingVSL, getMarketingMsgIG, getMarketingFMA, getMarketingFORM,
-  getMarketingMsgWapp, getCashflowCostosEquipo,
+  getMarketingMsgWapp,
   isClosedStatus, parseUSD, parseNumES, formatARS,
 } from "@/lib/sheets";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -98,10 +98,6 @@ const FMA_CANALES = ["Outbound", "Organico", "Comentarios", "Link Perfil", "VSL 
 const isFMA = (canal: string) => FMA_CANALES.some((c) => canal.toLowerCase().includes(c.toLowerCase()));
 const CLOSERS = ["Agus", "Foli", "Santi", "Pit", "Joan"];
 
-// CAC completo: el equipo de marketing va 100% a FMA; el setter se reparte por cierres
-// ponderados con el % de cierres de cada canal que pasan por setter (se le paga por cierre).
-const SETTER_PCT_CIERRES: Record<string, number> = { "FMA": 0.7, "ADS Mje IG": 1, "ADS Mje WAPP": 1 };
-
 function mediana(vals: number[]): number | null {
   if (!vals.length) return null;
   const sorted = [...vals].sort((a, b) => a - b);
@@ -144,14 +140,13 @@ export default async function VentasPage({
   const range  = sp.from && sp.to ? { from: sp.from, to: sp.to } : defaultRange();
   const prev   = prevRange(range.from, range.to);
 
-  const [reunionesRaw, vslData, igData, fmaData, formData, wappData, costosEquipo] = await Promise.all([
+  const [reunionesRaw, vslData, igData, fmaData, formData, wappData] = await Promise.all([
     getVentasReuniones(),
     getMarketingVSL(),
     getMarketingMsgIG(),
     getMarketingFMA(),
     getMarketingFORM(),
     getMarketingMsgWapp(),
-    getCashflowCostosEquipo(range.from, range.to).catch(() => null),
   ]);
 
   // ── gastos por período ──
@@ -728,77 +723,6 @@ export default async function VentasPage({
         );
       })()}
 
-      {/* ── CAC COMPLETO POR CANAL ── */}
-      {(() => {
-        const pesoSetter = (nombre: string) => SETTER_PCT_CIERRES[nombre] ?? 0;
-        const cierresConSetter = canalStats.reduce((s, c) => s + c.ccSpa * pesoSetter(c.nombre), 0);
-        const costoMkt    = costosEquipo?.marketing ?? 0;
-        const costoSetter = costosEquipo?.setter ?? 0;
-
-        const rows = canalStats.map((c) => {
-          const equipo = c.nombre === "FMA" ? costoMkt : 0;
-          const setter = cierresConSetter > 0 ? costoSetter * (c.ccSpa * pesoSetter(c.nombre)) / cierresConSetter : 0;
-          const total  = c.gasto + equipo + setter;
-          return { nombre: c.nombre, ads: c.gasto, equipo, setter, total, ccSpa: c.ccSpa, cacAds: c.cacCanal, cacTotal: c.ccSpa > 0 && total > 0 ? total / c.ccSpa : null };
-        });
-        const tot = rows.reduce(
-          (a, r) => ({ ads: a.ads + r.ads, equipo: a.equipo + r.equipo, setter: a.setter + r.setter, total: a.total + r.total, ccSpa: a.ccSpa + r.ccSpa }),
-          { ads: 0, equipo: 0, setter: 0, total: 0, ccSpa: 0 }
-        );
-        const totCacAds   = tot.ccSpa > 0 && tot.ads > 0 ? tot.ads / tot.ccSpa : null;
-        const totCacTotal = tot.ccSpa > 0 && tot.total > 0 ? tot.total / tot.ccSpa : null;
-
-        return (
-          <>
-            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">CAC completo por canal</h2>
-            <div className="card mb-8">
-              {!costosEquipo && (
-                <p className="text-xs text-amber-400 mb-3 px-1">No se pudieron leer los costos de Cashflow: equipo marketing y setter figuran en $0.</p>
-              )}
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-surface-700">
-                      {["Canal", "Ads", "Equipo mkt", "Setter", "Costo total", "CC/SPA", "CAC ads", "CAC total"].map((h) => (
-                        <th key={h} className="px-3 py-3 text-xs font-semibold text-slate-500 uppercase text-center whitespace-nowrap first:text-left">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r) => (
-                      <tr key={r.nombre} className="border-b border-surface-800/50 hover:bg-surface-800/30">
-                        <td className="px-3 py-3 font-medium text-slate-300 whitespace-nowrap">{r.nombre}</td>
-                        <td className="px-3 py-3 text-center text-brand-400">{fmtUSD(r.ads)}</td>
-                        <td className="px-3 py-3 text-center text-slate-300">{fmtUSD(r.equipo)}</td>
-                        <td className="px-3 py-3 text-center text-slate-300">{fmtUSD(r.setter)}</td>
-                        <td className="px-3 py-3 text-center font-bold text-white">{fmtUSD(r.total)}</td>
-                        <td className="px-3 py-3 text-center font-bold text-emerald-400">{r.ccSpa || "—"}</td>
-                        <td className="px-3 py-3 text-center text-slate-400">{fmtUSD(r.cacAds)}</td>
-                        <td className="px-3 py-3 text-center font-bold text-amber-300">{fmtUSD(r.cacTotal)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-surface-800/40 border-t border-surface-600/50">
-                      <td className="px-3 py-3 font-bold text-white">Total</td>
-                      <td className="px-3 py-3 text-center font-bold text-brand-400">{fmtUSD(tot.ads)}</td>
-                      <td className="px-3 py-3 text-center font-bold text-slate-300">{fmtUSD(tot.equipo)}</td>
-                      <td className="px-3 py-3 text-center font-bold text-slate-300">{fmtUSD(tot.setter)}</td>
-                      <td className="px-3 py-3 text-center font-bold text-white">{fmtUSD(tot.total)}</td>
-                      <td className="px-3 py-3 text-center font-bold text-emerald-400">{tot.ccSpa || "—"}</td>
-                      <td className="px-3 py-3 text-center font-bold text-slate-400">{fmtUSD(totCacAds)}</td>
-                      <td className="px-3 py-3 text-center font-bold text-amber-300">{fmtUSD(totCacTotal)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-              <p className="text-[10px] text-slate-600 mt-2 px-1">
-                Equipo marketing 100% a FMA · Setter repartido por cierres CC+SPA (FMA 70%, ADS Mje IG y WAPP 100%, resto 0) · Costos de Cashflow, prorrateados por días del período · Closers no incluidos · CAC = Costo / (CC + SPA)
-              </p>
-            </div>
-          </>
-        );
-      })()}
     </div>
   );
 }
