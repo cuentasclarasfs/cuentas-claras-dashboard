@@ -119,6 +119,40 @@ export async function getCashflowForMonth(monthKey: string): Promise<{
   return { cashCollected, totalGastos, cashflowCC, totalGastosPersonales, primerProgramaCC, renovadosCC, ahorroFinal };
 }
 
+// Costo de "Equipo Marketing" y "Setter" (USD) para un rango YYYY-MM-DD → YYYY-MM-DD.
+// Cada mes del Cashflow se prorratea por los días del mes que caen dentro del rango.
+export async function getCashflowCostosEquipo(from: string, to: string): Promise<{ marketing: number; setter: number }> {
+  const f = new Date(from + "T00:00:00");
+  const t = new Date(to + "T00:00:00");
+  let marketing = 0, setter = 0;
+
+  for (let y = f.getFullYear(); y <= t.getFullYear(); y++) {
+    const sheetYear = y === 2024 ? "24" : y === 2025 ? "25" : y === 2026 ? "26" : null;
+    if (!sheetYear) continue;
+    const rows = await getCashflow(sheetYear);
+    if (rows.length < 2) continue;
+    const header = rows[1];
+    const findRow = (label: string) => rows.find((r) => (r[1] ?? "").trim().toLowerCase() === label);
+    const mktRow = findRow("equipo marketing");
+    const setRow = findRow("setter");
+
+    for (let m = 0; m < 12; m++) {
+      const monthStart = new Date(y, m, 1);
+      const monthEnd = new Date(y, m + 1, 0);
+      const start = f > monthStart ? f : monthStart;
+      const end = t < monthEnd ? t : monthEnd;
+      if (start > end) continue;
+      const frac = (Math.round((end.getTime() - start.getTime()) / 86400000) + 1) / monthEnd.getDate();
+      const monthKey = `${y}-${String(m + 1).padStart(2, "0")}`;
+      const col = header.findIndex((v) => spanishHeaderToMonthKey(v ?? "") === monthKey);
+      if (col === -1) continue;
+      marketing += parseNumES(mktRow?.[col] ?? "") * frac;
+      setter += parseNumES(setRow?.[col] ?? "") * frac;
+    }
+  }
+  return { marketing, setter };
+}
+
 // Returns income breakdown by category for a given month (from Cashflow sheet col B)
 const INGRESOS_CATEGORIAS = [
   "Accountant EEUU",
