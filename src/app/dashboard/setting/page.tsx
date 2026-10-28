@@ -455,6 +455,13 @@ export default async function SettingPage({
 
   const reunHist    = byCanal("Historias");
   const cierresHist = reunHist.filter((r) => isClosedStatus(r["Status"])).length;
+
+  const reunHistPrev    = reunionesRaw.filter((r) => r["Prospecto"] && inRPrev(r["Fecha de la agenda"]) && r["Canal"]?.trim().toLowerCase() === "historias");
+  const cierresHistPrev = reunHistPrev.filter((r) => isClosedStatus(r["Status"])).length;
+  const historiasLeadsPrev = contenidoHistoriasRaw
+    .filter((r) => inRPrev(r["Fecha"] ?? ""))
+    .reduce((s, r) => s + (parseInt(r["Leads"]) || 0), 0);
+
   const histByTipo  = LEAD_TIPOS.map((tipo) => ({
     tipo,
     agendas: reunHist.filter((r) => matchTipo(r, tipo)).length,
@@ -1031,17 +1038,37 @@ export default async function SettingPage({
       <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 mt-8">Historias</h2>
       <div className="card mb-4">
         <div className="grid grid-cols-3 gap-4 mb-5">
-          {[
-            { label: "Leads",   value: historiasLeads > 0 ? historiasLeads : "—", color: historiasLeads > 0 ? "text-white" : "text-slate-500", note: null },
-            { label: "Agendas", value: reunHist.length || "—", color: "text-white",     note: null },
-            { label: "Cierres", value: cierresHist || "—",     color: "text-emerald-400", note: pct(cierresHist, reunHist.length) + " de ag." },
-          ].map((k) => (
-            <div key={k.label} className="bg-surface-800/50 rounded-xl p-4 text-center border border-surface-700/50">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">{k.label}</p>
-              <p className={`text-2xl font-bold ${k.color}`}>{k.value}</p>
-              {k.note && <p className="text-[10px] text-slate-600 mt-0.5">{k.note}</p>}
-            </div>
-          ))}
+          {/* Leads */}
+          <div className="bg-surface-800/50 rounded-xl p-4 text-center border border-surface-700/50">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Leads</p>
+            <p className={`text-2xl font-bold ${historiasLeads > 0 ? "text-white" : "text-slate-500"}`}>{historiasLeads > 0 ? historiasLeads : "—"}</p>
+            {historiasLeadsPrev > 0 && (
+              <p className="text-[11px] text-slate-500 mt-1 flex items-center justify-center gap-1">
+                ant: {historiasLeadsPrev} <VarBadge curr={historiasLeads} prev={historiasLeadsPrev} />
+              </p>
+            )}
+          </div>
+          {/* Agendas */}
+          <div className="bg-surface-800/50 rounded-xl p-4 text-center border border-surface-700/50">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Agendas</p>
+            <p className="text-2xl font-bold text-white">{reunHist.length || "—"}</p>
+            {reunHistPrev.length > 0 && (
+              <p className="text-[11px] text-slate-500 mt-1 flex items-center justify-center gap-1">
+                ant: {reunHistPrev.length} <VarBadge curr={reunHist.length} prev={reunHistPrev.length} />
+              </p>
+            )}
+          </div>
+          {/* Cierres */}
+          <div className="bg-surface-800/50 rounded-xl p-4 text-center border border-surface-700/50">
+            <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Cierres</p>
+            <p className="text-2xl font-bold text-emerald-400">{cierresHist || "—"}</p>
+            {reunHist.length > 0 && <p className="text-[10px] text-slate-600 mt-0.5">{pct(cierresHist, reunHist.length)} de ag.</p>}
+            {cierresHistPrev > 0 && (
+              <p className="text-[11px] text-slate-500 mt-1 flex items-center justify-center gap-1">
+                ant: {cierresHistPrev} <VarBadge curr={cierresHist} prev={cierresHistPrev} />
+              </p>
+            )}
+          </div>
         </div>
 
         {histByTipo.length > 0 && (
