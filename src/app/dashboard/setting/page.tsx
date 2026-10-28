@@ -238,15 +238,26 @@ export default async function SettingPage({
     .filter((r) => inR(r["Fecha"] ?? ""))
     .reduce((s, r) => s + (parseInt(r["Mensajes"]) || 0), 0);
 
+  // Previous period leads per strategy
+  const tiposALeadsPrev = tiposLeadsRaw
+    .filter((r) => inRPrev(r["Fecha"]))
+    .reduce((s, r) => s + (parseInt(r["Tipo A"]) || 0), 0);
+  const comentariosLeadsPrev =
+    contenidoPosteosRaw.filter((r) => inRPrev(r["Fecha"] ?? "")).reduce((s, r) => s + (parseInt(r["Comentarios"]) || 0), 0) +
+    fmaRawData.filter((r) => inRPrev(r["Fecha"] ?? "")).reduce((s, r) => s + (parseInt(r["Comentarios"]) || 0), 0);
+  const wappMensajesLeadsPrev = wappRawData
+    .filter((r) => inRPrev(r["Fecha"] ?? ""))
+    .reduce((s, r) => s + (parseInt(r["Mensajes"]) || 0), 0);
+
   const leadsAnalisis = [
-    { nombre: "ADS IG",      leads: tiposALeads,        canal: "ADS Mje IG",    tipoA: true,  sub: null as string | null },
-    { nombre: "Outbound",    leads: tienenNegocio,      canal: "Outbound",      tipoA: false, sub: null as string | null },
-    { nombre: "Comentarios", leads: comentariosLeads,   canal: "Comentarios",   tipoA: false,
+    { nombre: "ADS IG",       leads: tiposALeads,        leadsPrev: tiposALeadsPrev,       canal: "ADS Mje IG",    tipoA: true,  sub: null as string | null },
+    { nombre: "Outbound",     leads: tienenNegocio,      leadsPrev: prevTienenNegocio,     canal: "Outbound",      tipoA: false, sub: null as string | null },
+    { nombre: "Comentarios",  leads: comentariosLeads,   leadsPrev: comentariosLeadsPrev,  canal: "Comentarios",   tipoA: false,
       sub: (comentariosOrgLeads > 0 || comentariosADSLeads > 0)
         ? `org: ${comentariosOrgLeads} · ads: ${comentariosADSLeads}`
         : null as string | null },
-    { nombre: "Historias",   leads: historiasLeads,     canal: "Historias",     tipoA: false, sub: null as string | null },
-    { nombre: "ADS Mje WAPP", leads: wappMensajesLeads, canal: "ADS Mje WAPP", tipoA: false, sub: null as string | null },
+    { nombre: "Historias",    leads: historiasLeads,     leadsPrev: historiasLeadsPrev,    canal: "Historias",     tipoA: false, sub: null as string | null },
+    { nombre: "ADS Mje WAPP", leads: wappMensajesLeads, leadsPrev: wappMensajesLeadsPrev, canal: "ADS Mje WAPP",  tipoA: false, sub: null as string | null },
   ].map((e) => {
     let rows = byCanal(e.canal);
     // Para ADS IG solo contamos agendas Tipo A
@@ -756,6 +767,11 @@ export default async function SettingPage({
                   <td className="px-4 py-3 text-center text-slate-400">
                     {e.leads > 0 ? e.leads : "—"}
                     {e.sub && <p className="text-[10px] text-slate-600 mt-0.5">{e.sub}</p>}
+                    {e.leadsPrev > 0 && (
+                      <p className="text-[10px] text-slate-600 mt-0.5 flex items-center justify-center gap-1">
+                        ant: {e.leadsPrev} <VarBadge curr={e.leads} prev={e.leadsPrev} />
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-center font-bold text-white">{e.agendas || "—"}</td>
                   <td className="px-4 py-3 text-center text-brand-400">
