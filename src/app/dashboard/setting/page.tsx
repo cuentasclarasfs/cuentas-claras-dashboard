@@ -788,7 +788,8 @@ export default async function SettingPage({
               ))}
               {/* TOTAL */}
               {(() => {
-                const tL  = leadsAnalisis.reduce((s, e) => s + e.leads,   0);
+                const tL     = leadsAnalisis.reduce((s, e) => s + e.leads,     0);
+                const tLPrev = leadsAnalisis.reduce((s, e) => s + e.leadsPrev, 0);
                 const tAg = leadsAnalisis.reduce((s, e) => s + e.agendas, 0);
                 const tCi = leadsAnalisis.reduce((s, e) => s + e.cierres, 0);
                 const diasAll = leadsAnalisis.flatMap((e) => {
@@ -804,7 +805,14 @@ export default async function SettingPage({
                 return (
                   <tr className="bg-surface-800/40 border-t border-surface-600/50">
                     <td className="px-4 py-3 font-bold text-white">TOTAL</td>
-                    <td className="px-4 py-3 text-center text-slate-400 font-bold">{tL > 0 ? tL : "—"}</td>
+                    <td className="px-4 py-3 text-center text-slate-400 font-bold">
+                      {tL > 0 ? tL : "—"}
+                      {tLPrev > 0 && (
+                        <p className="text-[10px] text-slate-600 mt-0.5 flex items-center justify-center gap-1">
+                          ant: {tLPrev} <VarBadge curr={tL} prev={tLPrev} />
+                        </p>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-center font-bold text-white">{tAg || "—"}</td>
                     <td className="px-4 py-3 text-center text-brand-400">—</td>
                     <td className="px-4 py-3 text-center font-bold text-emerald-400">{tCi || "—"}</td>
