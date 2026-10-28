@@ -238,7 +238,10 @@ export default async function SettingPage({
     .filter((r) => inR(r["Fecha"] ?? ""))
     .reduce((s, r) => s + (parseInt(r["Mensajes"]) || 0), 0);
 
-  // Previous period leads per strategy
+  // Previous period leads per strategy (must be before leadsAnalisis)
+  const historiasLeadsPrev = contenidoHistoriasRaw
+    .filter((r) => inRPrev(r["Fecha"] ?? ""))
+    .reduce((s, r) => s + (parseInt(r["Leads"]) || 0), 0);
   const tiposALeadsPrev = tiposLeadsRaw
     .filter((r) => inRPrev(r["Fecha"]))
     .reduce((s, r) => s + (parseInt(r["Tipo A"]) || 0), 0);
@@ -469,9 +472,6 @@ export default async function SettingPage({
 
   const reunHistPrev    = reunionesRaw.filter((r) => r["Prospecto"] && inRPrev(r["Fecha de la agenda"]) && r["Canal"]?.trim().toLowerCase() === "historias");
   const cierresHistPrev = reunHistPrev.filter((r) => isClosedStatus(r["Status"])).length;
-  const historiasLeadsPrev = contenidoHistoriasRaw
-    .filter((r) => inRPrev(r["Fecha"] ?? ""))
-    .reduce((s, r) => s + (parseInt(r["Leads"]) || 0), 0);
 
   const histByTipo  = LEAD_TIPOS.map((tipo) => ({
     tipo,
