@@ -640,24 +640,24 @@ export async function getVentasMetrics2026() {
 }
 
 export async function getVentasReuniones(): Promise<Record<string, string>[]> {
-  const rows = await getSheet(process.env.SHEET_ID_VENTAS!, "Resumen Reuniones!A:V");
+  const rows = await getSheet(process.env.SHEET_ID_VENTAS!, "Resumen Reuniones!A:Y");
   if (rows.length < 2) return [];
-  // Map positionally — col R header is blank spaces so we can't rely on rowsToObjects
+  // Map positionally — 2 cols inserted at F+G shifted everything from J onward by +2
   return rows.slice(1).map((row) => ({
     "Prospecto":            row[1]  ?? "",  // B
     "Canal":                row[3]  ?? "",  // D
     "AD de origen":         row[4]  ?? "",  // E
-    "Tipo de lead":         row[9]  ?? "",  // J
-    "Fecha de la agenda":   row[10] ?? "",  // K
-    "Fecha de reunion":     row[11] ?? "",  // L
-    "Closer":               row[12] ?? "",  // M
-    "Facturacion":          row[14] ?? "",  // O
-    "Status":               row[17] ?? "",  // R
-    "Cash Collected":       row[19] ?? "",  // T — $ 24hs (kept key for compat)
-    "$ 24hs":               row[19] ?? "",  // T
-    "AOV Trato cerrado":    row[20] ?? "",  // U
-    "Dias hasta agenda":    row[21] ?? "",  // V
-    "Antigüedad negocio":   row[8]  ?? "",  // I
+    "Tipo de lead":         row[11] ?? "",  // L (was J)
+    "Fecha de la agenda":   row[12] ?? "",  // M (was K)
+    "Fecha de reunion":     row[13] ?? "",  // N (was L)
+    "Closer":               row[14] ?? "",  // O (was M)
+    "Facturacion":          row[16] ?? "",  // Q (was O)
+    "Status":               row[19] ?? "",  // T (was R)
+    "Cash Collected":       row[21] ?? "",  // V (was T)
+    "$ 24hs":               row[21] ?? "",  // V (was T)
+    "AOV Trato cerrado":    row[22] ?? "",  // W (was U)
+    "Dias hasta agenda":    row[23] ?? "",  // X (was V)
+    "Antigüedad negocio":   row[10] ?? "",  // K (was I — "Hace cuanto tiene negocio")
   }));
 }
 
@@ -824,18 +824,18 @@ export async function getStatusPagoAdmin(): Promise<Record<string, string>[]> {
 }
 
 // Comisiones — Resumen Reuniones extended with payment columns
-// B=Prospecto, M=Closer, N=Origen, O=Facturacion, P=ComSet, Q=ComCloser, R=Status
+// B=Prospecto, O=Closer, P=Origen, Q=Facturacion, R=ComSet, S=ComCloser, T=Status
 export async function getVentasComisiones(): Promise<Record<string, string>[]> {
-  const rows = await getSheet(process.env.SHEET_ID_VENTAS!, "Resumen Reuniones!A:R");
+  const rows = await getSheet(process.env.SHEET_ID_VENTAS!, "Resumen Reuniones!A:T");
   if (rows.length < 2) return [];
   return rows.slice(1).filter((r) => r[1]?.trim()).map((row) => ({
     "Prospecto":   row[1]  ?? "",  // B
-    "Closer":      row[12] ?? "",  // M
-    "Origen":      row[13] ?? "",  // N — "Setting", "Publi a VSL", etc.
-    "Facturacion": row[14] ?? "",  // O
-    "Com Set":     row[15] ?? "",  // P — TRUE/VERDADERO = paid
-    "Com Closer":  row[16] ?? "",  // Q — TRUE/VERDADERO = paid
-    "Status":      row[17] ?? "",  // R
+    "Closer":      row[14] ?? "",  // O (was M)
+    "Origen":      row[15] ?? "",  // P (was N)
+    "Facturacion": row[16] ?? "",  // Q (was O)
+    "Com Set":     row[17] ?? "",  // R (was P)
+    "Com Closer":  row[18] ?? "",  // S (was Q)
+    "Status":      row[19] ?? "",  // T (was R)
   }));
 }
 
