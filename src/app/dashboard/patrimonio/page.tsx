@@ -1,6 +1,7 @@
 import {
   getPatrimonioPortfolio,
   getPatrimonioHistoria,
+  getPatrimonioDetalle,
   type PortfolioAsset,
   type PatrimonioClase,
 } from "@/lib/sheets";
@@ -54,27 +55,29 @@ export default async function PatrimonioPage({
   searchParams: Promise<{ mes?: string }>;
 }) {
   const { mes } = await searchParams;
-  const [assets, historia] = await Promise.all([
+  const [liveAssets, historia, detalle] = await Promise.all([
     getPatrimonioPortfolio(),
     getPatrimonioHistoria(),
+    getPatrimonioDetalle(),
   ]);
 
   const selHist = mes ? (historia.find((h) => h.monthKey === mes) ?? null) : null;
 
-  const totalPatrimonio = selHist ? selHist.total      : assets.reduce((s, a) => s + a.valorUSD, 0);
-  const totalSinAF      = selHist ? selHist.totalSinAF : assets.filter((a) => a.clase !== "Real Estate Propio").reduce((s, a) => s + a.valorUSD, 0);
-  const varUSD          = selHist ? selHist.varUSD     : (historia[historia.length - 1]?.varUSD  ?? null);
-  const varPct          = selHist ? selHist.varPct     : (historia[historia.length - 1]?.varPct  ?? null);
+  // When a month is selected, use Detalle filtered by that month's label
+  const assets: PortfolioAsset[] = selHist
+    ? (() => {
+        const rows = detalle.filter((r) => r.fecha === selHist.label);
+        const tot  = rows.reduce((s, r) => s + r.valorUSD, 0);
+        const sinAF = rows.filter((r) => r.clase !== "Real Estate Propio").reduce((s, r) => s + r.valorUSD, 0);
+        return rows.map((r) => ({ ...r, pctTotal: tot > 0 ? r.valorUSD / tot : 0, pctSinAF: sinAF > 0 && r.clase !== "Real Estate Propio" ? r.valorUSD / sinAF : 0 }));
+      })()
+    : liveAssets;
 
-  const profile = selHist
-    ? riskProfile([
-        { activo:"Cash",       clase:"Cash",                  valorUSD: selHist.cash,        pctTotal:0, pctSinAF:0, moneda:"", cantidad:0, precioUSD:0, riesgo:"", pais:"", notas:"" },
-        { activo:"Acciones",   clase:"Acciones",              valorUSD: selHist.acciones,    pctTotal:0, pctSinAF:0, moneda:"", cantidad:0, precioUSD:0, riesgo:"", pais:"", notas:"" },
-        { activo:"Crypto",     clase:"Crypto",                valorUSD: selHist.crypto,      pctTotal:0, pctSinAF:0, moneda:"", cantidad:0, precioUSD:0, riesgo:"", pais:"", notas:"" },
-        { activo:"RE Propio",  clase:"Real Estate Propio",    valorUSD: selHist.rePropio,    pctTotal:0, pctSinAF:0, moneda:"", cantidad:0, precioUSD:0, riesgo:"", pais:"", notas:"" },
-        { activo:"RE Inv",     clase:"Real Estate Inversión", valorUSD: selHist.reInversion, pctTotal:0, pctSinAF:0, moneda:"", cantidad:0, precioUSD:0, riesgo:"", pais:"", notas:"" },
-      ])
-    : riskProfile(assets);
+  const totalPatrimonio = assets.reduce((s, a) => s + a.valorUSD, 0);
+  const totalSinAF      = assets.filter((a) => a.clase !== "Real Estate Propio").reduce((s, a) => s + a.valorUSD, 0);
+  const varUSD          = selHist?.varUSD ?? (historia[historia.length - 1]?.varUSD ?? null);
+  const varPct          = selHist?.varPct ?? (historia[historia.length - 1]?.varPct ?? null);
+  const profile         = riskProfile(assets);
 
   // Distribution by clase
   const CLASES: { key: PatrimonioClase; label: string }[] = [

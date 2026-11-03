@@ -1165,6 +1165,26 @@ export async function getPatrimonioPortfolio(): Promise<PortfolioAsset[]> {
   }));
 }
 
+export async function getPatrimonioDetalle(): Promise<(PortfolioAsset & { fecha: string })[]> {
+  const rows = await getSheetUnformatted(process.env.SHEET_ID_PATRIMONIO!, "Detalle!A:J");
+  if (rows.length < 2) return [];
+  const VALID_CLASES = new Set(["Cash","Acciones","Crypto","Real Estate Propio","Real Estate Inversión","Crédito Dado"]);
+  return rows.slice(1).filter((r) => VALID_CLASES.has(String(r[2] ?? "").trim())).map((r) => ({
+    fecha:     String(r[0] ?? "").trim(),
+    activo:    String(r[1] ?? "").trim(),
+    clase:     String(r[2] ?? "").trim() as PatrimonioClase,
+    moneda:    String(r[3] ?? "").trim(),
+    cantidad:  Number(r[4] ?? 0),
+    precioUSD: Number(r[5] ?? 0),
+    valorUSD:  Number(r[6] ?? 0),
+    riesgo:    String(r[7] ?? "").trim(),
+    pais:      String(r[8] ?? "").trim(),
+    notas:     String(r[9] ?? "").trim(),
+    pctTotal:  0,
+    pctSinAF:  0,
+  }));
+}
+
 export async function getPatrimonioHistoria(): Promise<HistoriaRow[]> {
   const rows = await getSheetUnformatted(
     process.env.SHEET_ID_PATRIMONIO!,
