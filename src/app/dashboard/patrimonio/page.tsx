@@ -66,7 +66,7 @@ export default async function PatrimonioPage({
   // When a month is selected, use Detalle filtered by that month's label
   const assets: PortfolioAsset[] = selHist
     ? (() => {
-        const rows = detalle.filter((r) => r.fecha === selHist.label);
+        const rows = detalle.filter((r) => r.monthKey === selHist.monthKey);
         const tot  = rows.reduce((s, r) => s + r.valorUSD, 0);
         const sinAF = rows.filter((r) => r.clase !== "Real Estate Propio").reduce((s, r) => s + r.valorUSD, 0);
         return rows.map((r) => ({ ...r, pctTotal: tot > 0 ? r.valorUSD / tot : 0, pctSinAF: sinAF > 0 && r.clase !== "Real Estate Propio" ? r.valorUSD / sinAF : 0 }));

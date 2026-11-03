@@ -1165,12 +1165,22 @@ export async function getPatrimonioPortfolio(): Promise<PortfolioAsset[]> {
   }));
 }
 
-export async function getPatrimonioDetalle(): Promise<(PortfolioAsset & { fecha: string })[]> {
+const DETALLE_MES: Record<string, number> = {
+  ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,sept:9,oct:10,nov:11,dic:12,
+};
+function detalleFechaToMonthKey(fecha: string): string {
+  const [mes, yr] = fecha.toLowerCase().split("-");
+  const m = DETALLE_MES[mes] ?? 0;
+  const y = parseInt(yr ?? "0") + (parseInt(yr ?? "0") < 50 ? 2000 : 1900);
+  return m ? `${y}-${String(m).padStart(2,"0")}` : "";
+}
+
+export async function getPatrimonioDetalle(): Promise<(PortfolioAsset & { monthKey: string })[]> {
   const rows = await getSheetUnformatted(process.env.SHEET_ID_PATRIMONIO!, "Detalle!A:J");
   if (rows.length < 2) return [];
   const VALID_CLASES = new Set(["Cash","Acciones","Crypto","Real Estate Propio","Real Estate Inversión","Crédito Dado"]);
   return rows.slice(1).filter((r) => VALID_CLASES.has(String(r[2] ?? "").trim())).map((r) => ({
-    fecha:     String(r[0] ?? "").trim(),
+    monthKey:  detalleFechaToMonthKey(String(r[0] ?? "").trim()),
     activo:    String(r[1] ?? "").trim(),
     clase:     String(r[2] ?? "").trim() as PatrimonioClase,
     moneda:    String(r[3] ?? "").trim(),
