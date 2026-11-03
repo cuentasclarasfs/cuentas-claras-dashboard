@@ -9,6 +9,7 @@ import { PatrimonioChart } from "@/components/patrimonio/PatrimonioChart";
 import { RiskPieChart } from "@/components/patrimonio/RiskPieChart";
 import { AccionesCartera } from "@/components/patrimonio/AccionesCartera";
 import { PatrimonioTabla } from "@/components/patrimonio/PatrimonioTabla";
+import { PatrimonioMesSelector } from "@/components/patrimonio/PatrimonioMesSelector";
 
 export const revalidate = 0;
 
@@ -47,23 +48,33 @@ function riskProfile(assets: PortfolioAsset[]): { label: string; desc: string; c
 
 // ── page ──────────────────────────────────────────────────────────────────────
 
-export default async function PatrimonioPage() {
+export default async function PatrimonioPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mes?: string }>;
+}) {
+  const { mes } = await searchParams;
   const [assets, historia] = await Promise.all([
     getPatrimonioPortfolio(),
     getPatrimonioHistoria(),
   ]);
 
-  const totalPatrimonio = assets.reduce((s, a) => s + a.valorUSD, 0);
-  const totalSinAF = assets
-    .filter((a) => a.clase !== "Real Estate Propio")
-    .reduce((s, a) => s + a.valorUSD, 0);
+  const selHist = mes ? (historia.find((h) => h.monthKey === mes) ?? null) : null;
 
-  // Last month variation (from Historia)
-  const lastHist = historia[historia.length - 1] ?? null;
-  const varUSD   = lastHist?.varUSD  ?? null;
-  const varPct   = lastHist?.varPct  ?? null;
+  const totalPatrimonio = selHist ? selHist.total      : assets.reduce((s, a) => s + a.valorUSD, 0);
+  const totalSinAF      = selHist ? selHist.totalSinAF : assets.filter((a) => a.clase !== "Real Estate Propio").reduce((s, a) => s + a.valorUSD, 0);
+  const varUSD          = selHist ? selHist.varUSD     : (historia[historia.length - 1]?.varUSD  ?? null);
+  const varPct          = selHist ? selHist.varPct     : (historia[historia.length - 1]?.varPct  ?? null);
 
-  const profile  = riskProfile(assets);
+  const profile = selHist
+    ? riskProfile([
+        { activo:"Cash",       clase:"Cash",                  valorUSD: selHist.cash,        pctTotal:0, pctSinAF:0, moneda:"", cantidad:0, precioUSD:0, riesgo:"", pais:"", notas:"" },
+        { activo:"Acciones",   clase:"Acciones",              valorUSD: selHist.acciones,    pctTotal:0, pctSinAF:0, moneda:"", cantidad:0, precioUSD:0, riesgo:"", pais:"", notas:"" },
+        { activo:"Crypto",     clase:"Crypto",                valorUSD: selHist.crypto,      pctTotal:0, pctSinAF:0, moneda:"", cantidad:0, precioUSD:0, riesgo:"", pais:"", notas:"" },
+        { activo:"RE Propio",  clase:"Real Estate Propio",    valorUSD: selHist.rePropio,    pctTotal:0, pctSinAF:0, moneda:"", cantidad:0, precioUSD:0, riesgo:"", pais:"", notas:"" },
+        { activo:"RE Inv",     clase:"Real Estate Inversión", valorUSD: selHist.reInversion, pctTotal:0, pctSinAF:0, moneda:"", cantidad:0, precioUSD:0, riesgo:"", pais:"", notas:"" },
+      ])
+    : riskProfile(assets);
 
   // Distribution by clase
   const CLASES: { key: PatrimonioClase; label: string }[] = [
@@ -81,6 +92,9 @@ export default async function PatrimonioPage() {
   return (
     <div>
       <PageHeader title="Patrimonio" description="Portfolio · Evolución · Distribución" />
+
+      {/* ── Corredor de meses ── */}
+      <PatrimonioMesSelector meses={[...historia].reverse().map((h) => ({ monthKey: h.monthKey, label: h.label }))} />
 
       {/* ── KPI cards ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
