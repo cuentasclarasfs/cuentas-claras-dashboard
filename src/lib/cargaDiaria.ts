@@ -126,7 +126,7 @@ export async function cargarDia(dia: string) {
   const ag = await agendasVSL(dia);
   const escrito: string[] = [];
 
-  escrito.push(...await escribirDia("VSL", dia, { B: suma(vsl, "gasto"), C: ag.principal, E: suma(vsl, "visitas"), G: ag.downsell }));
+  escrito.push(...await escribirDia("VSL", dia, { B: suma(vsl, "gasto"), C: ag.principal, E: suma(vsl, "visitas"), G: ag.downsell, H: '=IFERROR(B#/(C#+N(G#));"")' }));
   escrito.push(...await escribirDia("MSG WAPP", dia, { B: suma(wapp, "gasto"), C: suma(wapp, "mensajes") }));
   // FMA: lo de Meta + lo que avisa ManyChat (etiquetas) + diagnósticos y agendas que vinieron del link de ManyChat.
   const mc = await eventosManychat(dia);
