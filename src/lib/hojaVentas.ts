@@ -38,6 +38,9 @@ export function parecido(a: string, b: string) {
   const na = norm(a), nb = norm(b);
   const x = na.split(" ").slice(0, 2).join(" "), y = nb.split(" ").slice(0, 2).join(" ");
   if (!x || !y) return false;
+  // «Juan Pablo Lloberas» ≠ «Juan Pablo Debrandi»: si los dos tienen tercera palabra, tiene que coincidir.
+  const [ta, tb] = [na.split(" ")[2], nb.split(" ")[2]];
+  if (x === y && ta && tb && ta !== tb) return false;
   if (x === y || nb.startsWith(x) || na.startsWith(y)) return true;
   const wa = new Set(na.split(" ").filter((w) => w.length > 2));
   return nb.split(" ").filter((w) => w.length > 2 && wa.has(w)).length >= 2;
