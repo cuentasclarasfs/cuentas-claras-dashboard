@@ -102,7 +102,27 @@ async function agregarFilas(pestana: string, filas: (string | number)[][]) {
   });
 }
 
+// Valores que acepta cada desplegable del Sheets (Fran, 15-11). Lo que no se sabe queda vacío, nunca un valor fuera de la lista.
 const siNo = (s: string | null) => (s ? (/^s[ií]/i.test(s) ? "SI" : /^no/i.test(s) ? "NO" : "") : "");
+// Principal: siempre SI (ya no se pregunta). Downsell: lo que contestó, y si no contestó NO.
+export const ingresos = (r: { embudo: string; factura_10m: string | null }) => (r.embudo === "principal" ? "SI" : siNo(r.factura_10m) || "NO");
+export const antiguedad = (s: string | null) =>
+  /m[aá]s de 3/i.test(s ?? "") ? "Mas de 3 años" : /menos de 1/i.test(s ?? "") ? "Menos de 1 año" : /entre 1 y 3/i.test(s ?? "") ? "Entre 1 y 3 años" : "";
+/** Canal (D) y Origen (P) según de dónde vino la agenda: primero el utm del link, después el evento de Calendly (historial desde ago-26). */
+export function canalOrigen(r: { evento: string; utm_source: string | null; embudo: string }): [string, string] {
+  const u = r.utm_source ?? "", e = r.evento ?? "";
+  if (u === "diagnostico") return [r.embudo === "downsell" ? "Organico" : "Diagnostico Directo", "Organico"]; // Downsell no tiene «Diagnostico Directo»
+  if (u.startsWith("vsl-")) return ["Publi a VSL", "Publi a VSL"];
+  if (u === "perfil") return ["Link perfil", "Organico"];
+  if (u.startsWith("web-")) return ["Organico", "Organico"];
+  if (["TB", "FPG", "MZ", "RMK", "V", "V1", "V2"].includes(e)) return ["Publi a VSL", "Publi a VSL"];
+  if (e === "H") return ["Link perfil", "Organico"];
+  if (e === "M") return ["Outbound", "Setting"];
+  if (e === "R") return ["Referido", "Referido"];
+  if (e === "YT") return ["Organico", "Organico"];
+  if (e === "S") return ["", "Setting"]; // el link del setter: el canal (historias, ads, comentarios…) lo sabe Busta
+  return ["", ""];
+}
 
 /**
  * Sincroniza las reuniones desde `desde`:
@@ -164,8 +184,8 @@ export async function sincronizarHoja(desde: Date) {
   for (const pestana of PESTANAS) {
     const lote = faltan.filter((r) => (r.embudo === "downsell") === (pestana === "Downsell"));
     if (!lote.length) continue;
-    await agregarFilas(pestana, lote.map((r) => ["", r.nombre ?? "", r.mail ?? "", "", "", "", "", r.tipo_negocio ?? "", siNo(r.factura_10m), "",
-      r.antiguedad ?? "", "", r.fecha_agenda ? dma(new Date(r.fecha_agenda)) : "", dma(new Date(r.fecha_reu)), CLOSERS[r.closer_mail] ?? "", ""]));
+    await agregarFilas(pestana, lote.map((r) => { const [canal, origen] = canalOrigen(r); return ["", r.nombre ?? "", r.mail ?? "", canal, "", "", "", r.tipo_negocio ?? "", ingresos(r), "",
+      antiguedad(r.antiguedad), "", r.fecha_agenda ? dma(new Date(r.fecha_agenda)) : "", dma(new Date(r.fecha_reu)), CLOSERS[r.closer_mail] ?? "", origen]; }));
     for (const r of lote) await sql`UPDATE reuniones SET hoja=${pestana} WHERE id=${r.id}`;
     agregadas += lote.length;
   }
