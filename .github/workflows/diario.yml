@@ -1,0 +1,10 @@
+name: Carga diaria de métricas
+on:
+  schedule:
+    - cron: "30 11 * * *" # 8:30 de Argentina
+  workflow_dispatch:
+jobs:
+  cargar:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -fsS --max-time 90 https://dashboard.cuentasclarasfs.com/api/diario
