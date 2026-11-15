@@ -639,8 +639,11 @@ export async function getVentasMetrics2026() {
   return rows;
 }
 
-export async function getVentasReuniones(): Promise<Record<string, string>[]> {
-  const rows = await getSheet(process.env.SHEET_ID_VENTAS!, "Resumen Reuniones!A:Y");
+// Embudo: «Resumen Reuniones» = programa principal, «Downsell» = downsell (mismas columnas). "ambos" = las dos juntas.
+export type Embudo = "principal" | "downsell" | "ambos";
+export async function getVentasReuniones(embudo: Embudo = "principal"): Promise<Record<string, string>[]> {
+  if (embudo === "ambos") return [...await getVentasReuniones("principal"), ...await getVentasReuniones("downsell")];
+  const rows = await getSheet(process.env.SHEET_ID_VENTAS!, embudo === "downsell" ? "Downsell!A:Y" : "Resumen Reuniones!A:Y");
   if (rows.length < 2) return [];
   // Map positionally — 2 cols inserted at F+G shifted everything from J onward by +2
   return rows.slice(1).map((row) => ({

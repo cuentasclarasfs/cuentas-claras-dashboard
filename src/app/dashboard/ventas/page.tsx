@@ -1,6 +1,6 @@
 import {
   getVentasReuniones, getMarketingVSL, getMarketingMsgIG, getMarketingFMA, getMarketingFORM,
-  getMarketingMsgWapp,
+  getMarketingMsgWapp, type Embudo,
   isClosedStatus, parseUSD, parseNumES, formatARS,
 } from "@/lib/sheets";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -96,7 +96,7 @@ function diffArrow(curr: number, prev: number, lowerIsBetter = false) {
 
 const FMA_CANALES = ["Outbound", "Organico", "Comentarios", "Link Perfil", "VSL Insta", "Historias"];
 const isFMA = (canal: string) => FMA_CANALES.some((c) => canal.toLowerCase().includes(c.toLowerCase()));
-const CLOSERS = ["Agus", "Foli", "Santi", "Pit", "Joan"];
+const CLOSERS = ["Agus", "Foli", "Santi", "Barrio", "Pit", "Joan"];
 
 function mediana(vals: number[]): number | null {
   if (!vals.length) return null;
@@ -134,14 +134,15 @@ function closingStats(rows: Record<string, string>[]) {
 export default async function VentasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; embudo?: string }>;
 }) {
   const sp = await searchParams;
+  const embudo: Embudo = sp.embudo === "downsell" || sp.embudo === "ambos" ? sp.embudo : "principal";
   const range  = sp.from && sp.to ? { from: sp.from, to: sp.to } : defaultRange();
   const prev   = prevRange(range.from, range.to);
 
   const [reunionesRaw, vslData, igData, fmaData, formData, wappData] = await Promise.all([
-    getVentasReuniones(),
+    getVentasReuniones(embudo),
     getMarketingVSL(),
     getMarketingMsgIG(),
     getMarketingFMA(),
@@ -151,6 +152,8 @@ export default async function VentasPage({
 
   // ── gastos por período ──
   function gastosPeriodo(f: string, t: string) {
+    // El downsell no tiene publicidad propia: sale de la misma. Solo, se ve sin gasto; con «Ambos», gasto total / todas las agendas.
+    if (embudo === "downsell") return { vsl: 0, ig: 0, fma: 0, form: 0, wapp: 0, total: 0 };
     const vsl  = vslData .filter((r) => inDateRange(r["Fecha"] ?? "", f, t)).reduce((s, r) => s + parseUSD(r["Gasto"] ?? ""), 0);
     const ig   = igData  .filter((r) => inDateRange(r["Fecha"] ?? "", f, t)).reduce((s, r) => s + parseUSD(r["$"]    ?? ""), 0);
     const fma  = fmaData .filter((r) => inDateRange(r["Fecha"] ?? "", f, t)).reduce((s, r) => s + parseUSD(r["$"]    ?? ""), 0);
@@ -302,7 +305,7 @@ export default async function VentasPage({
       <PageHeader
         title="Ventas"
         description="Generación de agendas · Closing · Canales"
-        actions={<SalesPeriodPicker from={sp.from} to={sp.to} />}
+        actions={<div className="flex flex-wrap items-center gap-2"><EmbudoPicker sp={sp} embudo={embudo} /><SalesPeriodPicker from={sp.from} to={sp.to} /></div>}
       />
 
       {/* ── CLOSING ── */}
@@ -1013,5 +1016,17 @@ function CellPct({ val, total, warnAbove, lowerBetter }: { val: number; total: n
       <span className={warn ? "text-rose-400" : "text-slate-300"}>{val}</span>
       <span className="text-xs text-slate-500 ml-1">({p.toFixed(0)}%)</span>
     </td>
+  );
+}
+
+function EmbudoPicker({ sp, embudo }: { sp: { from?: string; to?: string }; embudo: Embudo }) {
+  const opciones: [Embudo, string][] = [["principal", "Principal"], ["downsell", "Downsell"], ["ambos", "Ambos"]];
+  const href = (e: Embudo) => "?" + new URLSearchParams({ ...(sp.from && sp.to ? { from: sp.from, to: sp.to } : {}), ...(e !== "principal" ? { embudo: e } : {}) });
+  return (
+    <div className="flex rounded-lg overflow-hidden border border-surface-700 text-sm">
+      {opciones.map(([e, label]) => (
+        <a key={e} href={href(e)} className={`px-3 py-2 ${e === embudo ? "bg-brand-600 text-white" : "bg-surface-800 text-slate-300 hover:bg-surface-700"}`}>{label}</a>
+      ))}
+    </div>
   );
 }
