@@ -114,7 +114,8 @@ export function canalOrigen(r: { evento: string; utm_source: string | null; utm_
   // Desde el diagnóstico, utm_campaign dice por dónde entró: la campaña directa o la del blog (guías: anuncio-plata, guia-…).
   if (u === "diagnostico") {
     if (/^(anuncio-|guia-|recurso-)/.test(camp) && camp !== "anuncio-directo") return ["Blog Diagnostico", "Organico"];
-    if (/^manychat|instagram|portada|testimonios/.test(camp)) return ["Organico", "Organico"];
+    if (/^manychat/.test(camp)) return ["Outbound", "Setting"]; // ManyChat a seguidores nuevos = Outbound, como el resto del outbound
+    if (/instagram|portada|testimonios/.test(camp)) return ["Organico", "Organico"];
     return ["Diagnostico Directo", "Organico"];
   }
   if (u.startsWith("vsl-")) return ["Publi a VSL", "Publi a VSL"];
