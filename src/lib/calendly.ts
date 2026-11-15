@@ -1,4 +1,5 @@
 import { sql, ensureSchema } from "@/lib/db";
+import { sincronizarHoja } from "@/lib/hojaVentas";
 
 const ORG = "https://api.calendly.com/organizations/3c677330-82ae-4fcf-9763-4da41e55d2aa";
 
@@ -78,13 +79,14 @@ export async function syncCalendly(desde: Date, hasta: Date) {
   return { nuevas, actualizadas };
 }
 
-/** Sync liviano para llamar al abrir la pantalla: como mucho una vez cada 2 minutos. */
+/** Sync liviano para llamar al abrir la pantalla: como mucho una vez cada 2 minutos (Calendly y después el Sheets). */
 export async function syncSiHaceFalta() {
   await ensureSchema();
-  const [fila] = (await sql`SELECT valor FROM sync_estado WHERE clave='calendly'`) as { valor: string }[];
-  if (fila && Date.now() - Number(fila.valor) < 120_000) return;
-  await sql`INSERT INTO sync_estado VALUES ('calendly', ${String(Date.now())})
-            ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor`;
   const ahora = Date.now();
+  await sql`INSERT INTO sync_estado VALUES ('calendly', '0') ON CONFLICT (clave) DO NOTHING`;
+  // Atómico: si dos personas abren la pantalla a la vez, sincroniza una sola (si no, se duplicarían filas en el Sheets).
+  const toca = await sql`UPDATE sync_estado SET valor=${String(ahora)} WHERE clave='calendly' AND valor::bigint < ${ahora - 120_000} RETURNING clave`;
+  if (!toca.length) return;
   await syncCalendly(new Date(ahora - 30 * 864e5), new Date(ahora + 60 * 864e5));
+  await sincronizarHoja(new Date(ahora - 30 * 864e5));
 }

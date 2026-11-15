@@ -3,6 +3,7 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { sql, STATUS, CLOSERS } from "@/lib/db";
+import { escribirEnHoja } from "@/lib/hojaVentas";
 
 function num(v: FormDataEntryValue | null) {
   const s = String(v ?? "").replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
@@ -24,13 +25,15 @@ export async function guardarReunion(form: FormData) {
     if (r?.closer_mail !== mail) throw new Error("Esta reunión es de otro closer");
   }
 
-  await sql`UPDATE reuniones SET
-      status=${status},
-      metodo_pago=${String(form.get("metodo_pago") ?? "") || null},
-      monto_24h=${num(form.get("monto_24h"))},
-      aov=${num(form.get("aov"))},
-      comentario=${String(form.get("comentario") ?? "") || null},
-      completado_por=${mail}, completado_en=now()
+  const datos = {
+    status, metodo_pago: String(form.get("metodo_pago") ?? "") || null, monto_24h: num(form.get("monto_24h")),
+    aov: num(form.get("aov")), comentario: String(form.get("comentario") ?? "") || null,
+  };
+  // Primero el Sheets (manda mientras el equipo lo use): si falla, no se guarda nada y el closer ve el error.
+  const [r] = (await sql`SELECT nombre, fecha_reu FROM reuniones WHERE id=${id}`) as { nombre: string; fecha_reu: string }[];
+  await escribirEnHoja({ ...r, ...datos });
+  await sql`UPDATE reuniones SET status=${datos.status}, metodo_pago=${datos.metodo_pago}, monto_24h=${datos.monto_24h},
+      aov=${datos.aov}, comentario=${datos.comentario}, completado_por=${mail}, completado_en=now()
     WHERE id=${id}`;
   revalidatePath("/dashboard/reuniones");
 }
