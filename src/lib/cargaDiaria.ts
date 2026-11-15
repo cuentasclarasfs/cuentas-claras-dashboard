@@ -74,7 +74,8 @@ async function diagnosticosDia(dia: string) {
   });
   const leads: { fecha: string; origen: string }[] = r.ok ? (await r.json()).leads ?? [] : [];
   const delDia = leads.filter((l) => l.fecha.slice(0, 10) === dia); // la web guarda la fecha en hora de Argentina
-  return { directo: delDia.filter((l) => l.origen === "anuncio-directo").length, blog: delDia.filter((l) => l.origen === "anuncio-plata").length };
+  const n = (o: string) => delDia.filter((l) => l.origen === o).length;
+  return { directo: n("anuncio-directo"), blog: n("anuncio-plata"), manychat: n("manychat-seguidor") };
 }
 
 async function agendasDiagnostico(dia: string, campana: string) {
@@ -86,12 +87,33 @@ async function agendasDiagnostico(dia: string, campana: string) {
 const ENCABEZADO_DIAG = [
   "Fecha", "$ Directo", "Visitas Directo", "Diagnósticos Directo", "Agendas Directo", "Agendas DS Directo", "$ / Diagnóstico Directo", "$ / Agenda Directo",
   "$ Blog", "Visitas Blog", "Diagnósticos Blog", "Agendas Blog", "Agendas DS Blog", "$ / Diagnóstico Blog", "$ / Agenda Blog",
+  "$ / Agenda total Directo (con DS)", "$ / Agenda total Blog (con DS)",
 ];
+
+/** Etiquetas que avisó ManyChat ese día (ver /api/manychat). manychatActivo = ya llegó algún aviso alguna vez. */
+async function eventosManychat(dia: string) {
+  const r = (await sql`SELECT etiqueta, count(*)::int n FROM manychat_eventos
+    WHERE (fecha AT TIME ZONE 'America/Argentina/Buenos_Aires')::date = ${dia}::date GROUP BY 1`) as { etiqueta: string; n: number }[];
+  const [{ hay }] = (await sql`SELECT count(*) > 0 hay FROM manychat_eventos`) as { hay: boolean }[];
+  const n = (e: string) => r.find((x) => x.etiqueta === e)?.n ?? 0;
+  return { manychatActivo: hay, nuevo_seguidor: n("nuevo_seguidor"), tiene_negocio: n("tiene_negocio"), click_diagnostico: n("click_diagnostico") };
+}
+
+async function asegurarEncabezado(pestana: string, cols: Record<string, string>) {
+  const s = hojas();
+  // Si la pestaña tiene menos columnas que las que se van a usar, se agregan al final.
+  const prop = (await s.spreadsheets.get({ spreadsheetId: SETTING, fields: "sheets.properties" })).data.sheets!.find((x) => x.properties!.title === pestana)!.properties!;
+  const falta = Math.max(...Object.keys(cols).map((l) => l.charCodeAt(0) - 64)) - (prop.gridProperties?.columnCount ?? 26);
+  if (falta > 0) await s.spreadsheets.batchUpdate({ spreadsheetId: SETTING, requestBody: { requests: [{ appendDimension: { sheetId: prop.sheetId, dimension: "COLUMNS", length: falta } }] } });
+  const fila1 = (await s.spreadsheets.values.get({ spreadsheetId: SETTING, range: `'${pestana}'!A1:Z1` })).data.values?.[0] ?? [];
+  const data = Object.entries(cols).filter(([l]) => !fila1[l.charCodeAt(0) - 65]).map(([l, t]) => ({ range: `'${pestana}'!${l}1`, values: [[t]] }));
+  if (data.length) await s.spreadsheets.values.batchUpdate({ spreadsheetId: SETTING, requestBody: { valueInputOption: "RAW", data } });
+}
 
 async function asegurarPestanaDiag() {
   const s = hojas();
   const meta = await s.spreadsheets.get({ spreadsheetId: SETTING, fields: "sheets.properties.title" });
-  if (meta.data.sheets!.some((x) => x.properties!.title === PESTANA_DIAG)) return;
+  if (meta.data.sheets!.some((x) => x.properties!.title === PESTANA_DIAG)) return asegurarEncabezado(PESTANA_DIAG, { P: ENCABEZADO_DIAG[15], Q: ENCABEZADO_DIAG[16] });
   await s.spreadsheets.batchUpdate({ spreadsheetId: SETTING, requestBody: { requests: [{ addSheet: { properties: { title: PESTANA_DIAG, gridProperties: { frozenRowCount: 1 } } } }] } });
   await s.spreadsheets.values.update({ spreadsheetId: SETTING, range: `'${PESTANA_DIAG}'!A1`, valueInputOption: "RAW", requestBody: { values: [ENCABEZADO_DIAG] } });
 }
@@ -100,12 +122,22 @@ async function asegurarPestanaDiag() {
 export async function cargarDia(dia: string) {
   const camp = await metaDia(dia);
   const de = (re: RegExp) => camp.filter((c) => re.test(c.nombre));
-  const vsl = de(/^VSL/i), fma = de(/^FMA/i), directo = de(/^Diagn[oó]stico/i), blog = de(/^Plata/i);
+  const vsl = de(/^VSL/i), fma = de(/^FMA/i), directo = de(/^Diagn[oó]stico/i), blog = de(/^Plata/i), wapp = de(/^MSG-Ventas/i);
   const ag = await agendasVSL(dia);
   const escrito: string[] = [];
 
   escrito.push(...await escribirDia("VSL", dia, { B: suma(vsl, "gasto"), C: ag.principal, E: suma(vsl, "visitas"), G: ag.downsell }));
-  escrito.push(...await escribirDia("FMA", dia, { B: suma(fma, "gasto"), C: suma(fma, "comentarios"), D: suma(fma, "seguidores") }));
+  escrito.push(...await escribirDia("MSG WAPP", dia, { B: suma(wapp, "gasto"), C: suma(wapp, "mensajes") }));
+  // FMA: lo de Meta + lo que avisa ManyChat (etiquetas) + diagnósticos y agendas que vinieron del link de ManyChat.
+  const mc = await eventosManychat(dia);
+  const agMc = await agendasDiagnostico(dia, "manychat-seguidor");
+  const diagMc = (await diagnosticosDia(dia)).manychat;
+  await asegurarEncabezado("FMA", { P: "Clic diagnóstico (Many)", Q: "Diagnósticos (Many)", R: "Agendas (Many)", S: "Agendas DS (Many)" });
+  escrito.push(...await escribirDia("FMA", dia, {
+    B: suma(fma, "gasto"), C: suma(fma, "comentarios"), D: suma(fma, "seguidores"),
+    ...(mc.manychatActivo ? { E: mc.nuevo_seguidor, F: mc.tiene_negocio, P: mc.click_diagnostico } : {}),
+    Q: diagMc, R: agMc.principal, S: agMc.downsell,
+  }));
 
   if (directo.length || blog.length) {
     await asegurarPestanaDiag();
@@ -115,6 +147,7 @@ export async function cargarDia(dia: string) {
     escrito.push(...await escribirDia(PESTANA_DIAG, dia, {
       B: suma(directo, "gasto"), C: suma(directo, "visitas"), D: diag.directo, E: aD.principal, F: aD.downsell, G: div("B#", "D#"), H: div("B#", "E#"),
       I: suma(blog, "gasto"), J: suma(blog, "visitas"), K: diag.blog, L: aB.principal, M: aB.downsell, N: div("I#", "K#"), O: div("I#", "L#"),
+      P: div("B#", "(E#+F#)"), Q: div("I#", "(L#+M#)"),
     }));
   }
   return escrito;
