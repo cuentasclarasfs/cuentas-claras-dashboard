@@ -109,9 +109,14 @@ export const ingresos = (r: { embudo: string; factura_10m: string | null }) => (
 export const antiguedad = (s: string | null) =>
   /m[aá]s de 3/i.test(s ?? "") ? "Mas de 3 años" : /menos de 1/i.test(s ?? "") ? "Menos de 1 año" : /entre 1 y 3/i.test(s ?? "") ? "Entre 1 y 3 años" : "";
 /** Canal (D) y Origen (P) según de dónde vino la agenda: primero el utm del link, después el evento de Calendly (historial desde ago-26). */
-export function canalOrigen(r: { evento: string; utm_source: string | null; embudo: string }): [string, string] {
-  const u = r.utm_source ?? "", e = r.evento ?? "";
-  if (u === "diagnostico") return [r.embudo === "downsell" ? "Organico" : "Diagnostico Directo", "Organico"]; // Downsell no tiene «Diagnostico Directo»
+export function canalOrigen(r: { evento: string; utm_source: string | null; utm_campaign?: string | null; embudo: string }): [string, string] {
+  const u = r.utm_source ?? "", e = r.evento ?? "", camp = r.utm_campaign ?? "";
+  // Desde el diagnóstico, utm_campaign dice por dónde entró: la campaña directa o la del blog (guías: anuncio-plata, guia-…).
+  if (u === "diagnostico") {
+    if (/^(anuncio-|guia-|recurso-)/.test(camp) && camp !== "anuncio-directo") return ["Blog Diagnostico", "Organico"];
+    if (/^manychat|instagram|portada|testimonios/.test(camp)) return ["Organico", "Organico"];
+    return ["Diagnostico Directo", "Organico"];
+  }
   if (u.startsWith("vsl-")) return ["Publi a VSL", "Publi a VSL"];
   if (u === "perfil") return ["Link perfil", "Organico"];
   if (u.startsWith("web-")) return ["Organico", "Organico"];
