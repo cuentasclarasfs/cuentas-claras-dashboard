@@ -103,6 +103,26 @@ async function agregarFilas(pestana: string, filas: (string | number)[][]) {
 }
 
 // Valores que acepta cada desplegable del Sheets (Fran, 15-11). Lo que no se sabe queda vacío, nunca un valor fuera de la lista.
+type Celda = { hoja: string; fila: number; nombre: string; reu: Date; col: string; valores: (string | number)[] };
+// Entre que se lee y se escribe alguien puede ordenar la pestaña: antes de escribir se confirma que en esa fila siga
+// la misma persona (nombre + fecha de reunión); si se movió, se la busca; si no aparece, no se escribe nada.
+async function escribirCeldas(celdas: Celda[]) {
+  if (!celdas.length) return;
+  const s = hojas();
+  const tabla: Record<string, unknown[][]> = {};
+  for (const h of new Set(celdas.map((c) => c.hoja)))
+    tabla[h] = (await s.spreadsheets.values.get({ spreadsheetId: ID, range: `'${h}'!A1:N`, valueRenderOption: "UNFORMATTED_VALUE" })).data.values ?? [];
+  const es = (fila: unknown[] | undefined, c: Celda) => !!fila && norm(String(fila[1] ?? "")) === norm(c.nombre) &&
+    fechaCelda(fila[13]) !== null && aSerie(fechaCelda(fila[13])!) === aSerie(c.reu);
+  const data = celdas.flatMap((c) => {
+    const t = tabla[c.hoja];
+    const n = es(t[c.fila - 1], c) ? c.fila : t.findIndex((f) => es(f, c)) + 1;
+    return n > 0 ? [{ range: `'${c.hoja}'!${c.col}${n}`, values: [c.valores.map(seguro)] }] : [];
+  });
+  if (data.length) await s.spreadsheets.values.batchUpdate({ spreadsheetId: ID, requestBody: { valueInputOption: "USER_ENTERED", data } });
+  return data.length;
+}
+
 const siNo = (s: string | null) => (s ? (/^s[ií]/i.test(s) ? "SI" : /^no/i.test(s) ? "NO" : "") : "");
 // Principal: siempre SI (ya no se pregunta). Downsell: lo que contestó, y si no contestó NO.
 export const ingresos = (r: { embudo: string; factura_10m: string | null }) => (r.embudo === "principal" ? "SI" : siNo(r.factura_10m) || "NO");
@@ -143,7 +163,7 @@ export async function sincronizarHoja(desde: Date) {
   const porId = new Map(db.map((r) => [r.id, r]));
   const CAMPOS = ["canal", "ad_origen", "tipo_lead", "origen", "facturacion", "com_set", "com_closer", "status", "metodo_pago", "monto_24h", "aov", "comentario", "closer_nombre"];
   let actualizadas = 0, nuevas = 0, agregadas = 0;
-  const celdas: { range: string; values: (string | number)[][] }[] = [];
+  const celdas: Celda[] = [];
 
   for (const f of filas) {
     const id = f.repetidaDe ? f.repetidaDe.match : f.match;
@@ -152,8 +172,8 @@ export async function sincronizarHoja(desde: Date) {
       const d0 = f.datos;
       if (!f.repetidaDe && r.fuente === "calendly" && new Date(r.fecha_reu) >= AUTO_DESDE) {
         // Reagendó en Calendly: se corrige la fecha en su fila. Canceló (sin reagendar): status «Cancelado».
-        if (!r.cancelada && aSerie(new Date(r.fecha_reu)) !== aSerie(f.reu)) celdas.push({ range: `'${f.hoja}'!N${f.fila}`, values: [[aSerie(new Date(r.fecha_reu))]] });
-        if (r.cancelada && !d0.status) { celdas.push({ range: `'${f.hoja}'!T${f.fila}`, values: [["Cancelado"]] }); d0.status = "Cancelado"; }
+        if (!r.cancelada && aSerie(new Date(r.fecha_reu)) !== aSerie(f.reu)) celdas.push({ hoja: f.hoja, fila: f.fila, nombre: f.nombre, reu: f.reu, col: "N", valores: [dma(new Date(r.fecha_reu))] });
+        if (r.cancelada && !d0.status) { celdas.push({ hoja: f.hoja, fila: f.fila, nombre: f.nombre, reu: f.reu, col: "T", valores: ["Cancelado"] }); d0.status = "Cancelado"; }
       }
       // Campo vacío en el Sheets no borra lo cargado en la plataforma.
       const cambia = CAMPOS.some((k) => d0[k] != null && (typeof d0[k] === "number" ? Number(r[k]) !== d0[k] : r[k] !== d0[k]));
@@ -182,7 +202,7 @@ export async function sincronizarHoja(desde: Date) {
     }
   }
 
-  if (celdas.length) await hojas().spreadsheets.values.batchUpdate({ spreadsheetId: ID, requestBody: { valueInputOption: "RAW", data: celdas } });
+  await escribirCeldas(celdas);
 
   // 3) Toda agenda de Calendly tiene su fila: la que no está en el Sheets se agrega al final de su pestaña.
   const faltan = db.filter((r) => r.fuente === "calendly" && !r.cancelada && !r.hoja && !filas.some((f) => f.match === r.id) &&
@@ -202,15 +222,14 @@ export async function sincronizarHoja(desde: Date) {
 export async function escribirEnHoja(r: { nombre: string; fecha_reu: string; status: string; metodo_pago: string | null; monto_24h: number | null; aov: number | null; comentario: string | null }) {
   const filas = await leerHojas();
   const t = new Date(r.fecha_reu).getTime();
-  const data: { range: string; values: (string | number)[][] }[] = [];
+  const celdas: Celda[] = [];
   for (const pestana of PESTANAS) {
     const f = filas.filter((x) => x.hoja === pestana && Math.abs(x.reu.getTime() - t) < 45 * DIA && parecido(x.nombre, r.nombre))
       .sort((a, b) => Math.abs(a.reu.getTime() - t) - Math.abs(b.reu.getTime() - t))[0];
     if (!f) continue;
-    data.push({ range: `'${pestana}'!T${f.fila}:W${f.fila}`, values: [[r.status, r.metodo_pago ?? "", r.monto_24h ?? "", r.aov ?? ""]] });
-    data.push({ range: `'${pestana}'!Y${f.fila}`, values: [[r.comentario ?? ""]] });
+    const base = { hoja: pestana, fila: f.fila, nombre: f.nombre, reu: f.reu };
+    celdas.push({ ...base, col: "T", valores: [r.status, r.metodo_pago ?? "", r.monto_24h ?? "", r.aov ?? ""] }, { ...base, col: "Y", valores: [r.comentario ?? ""] });
   }
-  if (!data.length) return false;
-  await hojas().spreadsheets.values.batchUpdate({ spreadsheetId: ID, requestBody: { valueInputOption: "RAW", data } });
+  if (!(await escribirCeldas(celdas))) return false;
   return true;
 }

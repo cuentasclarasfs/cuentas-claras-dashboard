@@ -31,7 +31,7 @@ export async function guardarReunion(form: FormData) {
   };
   // Primero el Sheets (manda mientras el equipo lo use): si falla, no se guarda nada y el closer ve el error.
   const [r] = (await sql`SELECT nombre, fecha_reu FROM reuniones WHERE id=${id}`) as { nombre: string; fecha_reu: string }[];
-  await escribirEnHoja({ ...r, ...datos });
+  if (!(await escribirEnHoja({ ...r, ...datos }))) throw new Error("No encontré la fila de esta reunión en el Sheets: avisale a Busta.");
   await sql`UPDATE reuniones SET status=${datos.status}, metodo_pago=${datos.metodo_pago}, monto_24h=${datos.monto_24h},
       aov=${datos.aov}, comentario=${datos.comentario}, completado_por=${mail}, completado_en=now()
     WHERE id=${id}`;
