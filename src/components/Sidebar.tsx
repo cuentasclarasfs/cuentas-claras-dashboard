@@ -14,12 +14,14 @@ import {
   FileText,
   ChevronRight,
   Gauge,
+  CalendarCheck,
 } from "lucide-react";
 import type { Role } from "@/lib/roles";
 import { canAccess } from "@/lib/roles";
 import { clsx } from "clsx";
 
 const NAV_ITEMS = [
+  { href: "/dashboard/reuniones", label: "Reuniones",  icon: CalendarCheck,   section: "reuniones" },
   { href: "/dashboard/home",      label: "Dashboard",  icon: LayoutDashboard, section: "home" },
   { href: "/dashboard/resumen",   label: "Resumen",    icon: Gauge,           section: "resumen" },
   { href: "/dashboard/finanzas",  label: "Finanzas",   icon: DollarSign,      section: "finanzas" },

@@ -7,8 +7,8 @@ export const ROLE_LABELS: Record<Role, string> = {
 };
 
 export const ROLE_SECTIONS: Record<Role, string[]> = {
-  admin:  ["home", "resumen", "finanzas", "clientes", "ventas", "setting", "marketing", "operaciones", "administracion", "patrimonio", "contenido"],
-  ventas: ["ventas", "setting", "marketing", "contenido", "administracion"],
+  admin:  ["home", "reuniones", "resumen", "finanzas", "clientes", "ventas", "setting", "marketing", "operaciones", "administracion", "patrimonio", "contenido"],
+  ventas: ["reuniones", "ventas", "setting", "marketing", "contenido", "administracion"],
   ops:    ["clientes", "administracion"],
 };
 
@@ -19,6 +19,6 @@ export function canAccess(role: Role, section: string): boolean {
 
 export function getDefaultSection(role: Role): string {
   if (role === "admin") return "home";
-  if (role === "ventas") return "ventas";
+  if (role === "ventas") return "reuniones";
   return "clientes";
 }
