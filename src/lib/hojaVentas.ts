@@ -136,11 +136,12 @@ export const antiguedad = (s: string | null) =>
 /** Canal (D) y Origen (P) según de dónde vino la agenda: primero el utm del link, después el evento de Calendly (historial desde ago-26). */
 export function canalOrigen(r: { evento: string; utm_source: string | null; utm_campaign?: string | null; embudo: string }): [string, string] {
   const u = r.utm_source ?? "", e = r.evento ?? "", camp = r.utm_campaign ?? "";
-  // Desde el diagnóstico, utm_campaign dice por dónde entró: la campaña directa o la del blog (guías: anuncio-plata, guia-…).
+  // Desde el diagnóstico, utm_campaign dice por dónde entró. El Canal se compara con lo invertido:
+  // Blog Diagnostico = solo anuncios pagos al artículo (anuncio-plata…); guías y recursos sin anuncio = Organico.
   if (u === "diagnostico") {
-    if (/^(anuncio-|guia-|recurso-)/.test(camp) && camp !== "anuncio-directo") return ["Blog Diagnostico", "Organico"];
+    if (/^anuncio-/.test(camp) && camp !== "anuncio-directo") return ["Blog Diagnostico", "Organico"];
     if (/^manychat/.test(camp)) return ["Outbound", "Setting"]; // ManyChat a seguidores nuevos = Outbound, como el resto del outbound
-    if (/instagram|portada|testimonios/.test(camp)) return ["Organico", "Organico"];
+    if (/^(guia-|recurso-)|instagram|portada|testimonios/.test(camp)) return ["Organico", "Organico"];
     return ["Diagnostico Directo", "Organico"];
   }
   if (u.startsWith("vsl-")) return ["Publi a VSL", "Publi a VSL"];
