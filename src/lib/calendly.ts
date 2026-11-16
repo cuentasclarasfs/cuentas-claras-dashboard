@@ -47,7 +47,7 @@ export async function syncCalendly(desde: Date, hasta: Date) {
       if (!/ENTREVISTA/i.test(ev.name)) continue; // solo las entrevistas de venta
       const closer = ev.event_memberships?.[0]?.user_email ?? null;
       if (conocidas.has(ev.uri)) {
-        await sql`UPDATE reuniones SET cancelada=${ev.status === "canceled"}, closer_mail=${closer}, fecha_reu=${ev.start_time}
+        await sql`UPDATE reuniones SET cancelada=${ev.status === "canceled"}, closer_mail=${closer}, fecha_reu=CASE WHEN fecha_manual THEN fecha_reu ELSE ${ev.start_time}::timestamptz END
                   WHERE evento_uri=${ev.uri}`;
         actualizadas++;
       } else nuevosEv.push(ev);

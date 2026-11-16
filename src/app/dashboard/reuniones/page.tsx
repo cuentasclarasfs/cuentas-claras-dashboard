@@ -4,7 +4,7 @@ import { after } from "next/server";
 import { syncSiHaceFalta } from "@/lib/calendly";
 import { cargaDiariaSiFalta } from "@/lib/cargaDiaria";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { guardarReunion } from "./actions";
+import { guardarReunion, reagendarReunion } from "./actions";
 import { StatusSelect } from "./StatusSelect";
 import { leadsDiagnostico, type LeadDiag } from "@/lib/diagnostico";
 
@@ -79,10 +79,10 @@ export default async function Reuniones({ searchParams }: { searchParams: Promis
         {senas.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} conForm verCloser={!CLOSERS[yo]} />)}
       </Seccion>
       <Seccion titulo={`Pendientes de completar (${pendientes.length})`} vacio="Nada pendiente.">
-        {pendientes.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} conForm verCloser={!CLOSERS[yo]} />)}
+        {pendientes.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} conForm reagendar verCloser={!CLOSERS[yo]} />)}
       </Seccion>
       <Seccion titulo={`Próximas (${proximas.length})`} vacio="No hay reuniones agendadas.">
-        {proximas.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} verCloser={!CLOSERS[yo]} />)}
+        {proximas.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} reagendar verCloser={!CLOSERS[yo]} />)}
       </Seccion>
       <Seccion titulo={`Completadas · últimos 30 días (${hechas.length})`} vacio={q ? `No encontré «${q}».` : "Todavía no hay reuniones completadas."} abierta={!!q} arriba={buscador}>
         {hechas.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} conForm verCloser={!CLOSERS[yo]} />)}
@@ -107,7 +107,7 @@ function Seccion({ titulo, vacio, children, abierta = true, arriba }: { titulo: 
   );
 }
 
-function Tarjeta({ r, diag, conForm, verCloser }: { r: Reunion; diag: { lead: LeadDiag | null; sabe: boolean }; conForm?: boolean; verCloser: boolean }) {
+function Tarjeta({ r, diag, conForm, reagendar, verCloser }: { r: Reunion; diag: { lead: LeadDiag | null; sabe: boolean }; conForm?: boolean; reagendar?: boolean; verCloser: boolean }) {
   const input = "bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-sm text-slate-200";
   return (
     <div className="bg-surface-800 rounded-xl p-4 border border-surface-700">
@@ -136,6 +136,17 @@ function Tarjeta({ r, diag, conForm, verCloser }: { r: Reunion; diag: { lead: Le
            className="inline-block mt-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg px-3 py-1.5">
           Hablar por WhatsApp
         </a>
+      )}
+
+      {reagendar && (
+        <details className="mt-2">
+          <summary className="text-sm text-slate-400 cursor-pointer hover:text-slate-200">Reagendar (cambiar fecha)</summary>
+          <form action={reagendarReunion} className="mt-2 flex flex-wrap gap-2">
+            <input type="hidden" name="id" value={r.id} />
+            <input type="datetime-local" name="fecha" required className={input} />
+            <button className="bg-surface-700 hover:bg-surface-600 text-white rounded-lg px-3 py-2 text-sm font-medium">Guardar nueva fecha</button>
+          </form>
+        </details>
       )}
 
       {conForm && (

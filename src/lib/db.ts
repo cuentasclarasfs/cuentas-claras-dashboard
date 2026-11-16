@@ -42,7 +42,8 @@ export async function ensureSchema() {
     ADD COLUMN IF NOT EXISTS facturacion text, ADD COLUMN IF NOT EXISTS com_set text,
     ADD COLUMN IF NOT EXISTS com_closer text, ADD COLUMN IF NOT EXISTS closer_nombre text,
     ADD COLUMN IF NOT EXISTS hoja text, ADD COLUMN IF NOT EXISTS fuente text DEFAULT 'calendly',
-    ADD COLUMN IF NOT EXISTS descartada boolean DEFAULT false`; // agendas viejas de Calendly que nunca pasaron al Sheets
+    ADD COLUMN IF NOT EXISTS descartada boolean DEFAULT false,
+    ADD COLUMN IF NOT EXISTS fecha_manual boolean DEFAULT false`; // el closer la reagendó a mano: Calendly ya no pisa la fecha // agendas viejas de Calendly que nunca pasaron al Sheets
   await sql`CREATE TABLE IF NOT EXISTS sync_estado (clave text PRIMARY KEY, valor text)`;
   // Avisos de ManyChat: una fila por contacto y etiqueta (si ManyChat avisa dos veces, cuenta una).
   await sql`CREATE TABLE IF NOT EXISTS manychat_eventos (etiqueta text, contacto text, fecha timestamptz DEFAULT now(), PRIMARY KEY (etiqueta, contacto))`;

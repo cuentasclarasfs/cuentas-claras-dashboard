@@ -226,16 +226,23 @@ export async function sincronizarHoja(desde: Date) {
 
 /** Lo que guarda el closer en la plataforma se escribe en su fila del Sheets (Status, Método, $ 24 hs, AOV y Comentario). */
 export async function escribirEnHoja(r: { nombre: string; fecha_reu: string; status: string; metodo_pago: string | null; monto_24h: number | null; aov: number | null; comentario: string | null }) {
-  const filas = await leerHojas();
-  const t = new Date(r.fecha_reu).getTime();
-  const celdas: Celda[] = [];
-  for (const pestana of PESTANAS) {
+  const celdas = (await filasDe(r)).flatMap((base) => [
+    { ...base, col: "T", valores: [r.status, r.metodo_pago ?? "", r.monto_24h ?? "", r.aov ?? ""] }, { ...base, col: "Y", valores: [r.comentario ?? ""] }]);
+  return celdas.length > 0 && (await escribirCeldas(celdas));
+}
+
+/** El closer reagendó a mano: la nueva fecha va a la columna N («Fecha de reunión») de su fila. */
+export async function reagendarEnHoja(r: { nombre: string; fecha_reu: string }, nueva: Date) {
+  const celdas = (await filasDe(r)).map((base) => ({ ...base, col: "N", valores: [dma(nueva)] }));
+  return celdas.length > 0 && (await escribirCeldas(celdas));
+}
+
+// La fila de esta reunión en cada pestaña: mismo nombre y la fecha más cercana (±45 días).
+async function filasDe(r: { nombre: string; fecha_reu: string }) {
+  const filas = await leerHojas(), t = new Date(r.fecha_reu).getTime();
+  return PESTANAS.flatMap((pestana) => {
     const f = filas.filter((x) => x.hoja === pestana && Math.abs(x.reu.getTime() - t) < 45 * DIA && parecido(x.nombre, r.nombre))
       .sort((a, b) => Math.abs(a.reu.getTime() - t) - Math.abs(b.reu.getTime() - t))[0];
-    if (!f) continue;
-    const base = { hoja: pestana, fila: f.fila, nombre: f.nombre, reu: f.reu };
-    celdas.push({ ...base, col: "T", valores: [r.status, r.metodo_pago ?? "", r.monto_24h ?? "", r.aov ?? ""] }, { ...base, col: "Y", valores: [r.comentario ?? ""] });
-  }
-  if (!(await escribirCeldas(celdas))) return false;
-  return true;
+    return f ? [{ hoja: pestana, fila: f.fila, nombre: f.nombre, reu: f.reu }] : [];
+  });
 }
