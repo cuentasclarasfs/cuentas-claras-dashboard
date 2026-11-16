@@ -1629,7 +1629,7 @@ export default async function SettingPage({
           const cierres = byCanal(canal).filter((r) => isClosedStatus(r["Status"])).length;
           const pasos: [string, number, string | null][] = [
             ["Gasto", gasto, null],
-            ["Visitas a la página", visitas, gasto > 0 && visitas > 0 ? `${fmtUSD(gasto / visitas)} c/u` : null],
+            ["Visitas a la página", visitas, gasto > 0 && visitas > 0 ? `$${(gasto / visitas).toFixed(2)} c/u` : null],
             ["Diagnósticos completados", diags, visitas > 0 ? `${pct(diags, visitas)} de las visitas · ${fmtUSD(diags > 0 ? gasto / diags : null)} c/u` : null],
             ["Agendas principal", ag, diags > 0 ? `${pct(ag, diags)} de los diagnósticos · ${fmtUSD(ag > 0 ? gasto / ag : null)} c/u` : null],
             ["Agendas downsell", agDs, `Total con DS: ${ag + agDs} · ${fmtUSD(ag + agDs > 0 ? gasto / (ag + agDs) : null)} c/u`],
