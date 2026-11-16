@@ -116,7 +116,7 @@ export default async function SettingPage({
   const range = sp.from && sp.to ? { from: sp.from, to: sp.to } : defaultRange();
   const prev  = prevRange(range.from, range.to);
 
-  const [msgIGRaw, msgIGARaw, tiposLeadsRaw, analisisFMARaw, analisisMsgIGRaw, reunionesRaw, vslRaw, fmaRawData, formRawData, comparativaARaw, wappRawData, diagRaw] = await Promise.all([
+  const [msgIGRaw, msgIGARaw, tiposLeadsRaw, analisisFMARaw, analisisMsgIGRaw, reunionesRaw, vslRaw, fmaRawData, formRawData, comparativaARaw, wappRawData, diagRaw, reunionesDsRaw] = await Promise.all([
     getSettingMsgIG(),
     getSettingMsgIGA(),
     getSettingTiposLeads(),
@@ -129,6 +129,7 @@ export default async function SettingPage({
     getComparativaA(),
     getMarketingMsgWapp(),
     getDiagnosticoADS(),
+    getVentasReuniones("downsell"),
   ]);
 
   // Contenido sheets (may not be configured)
@@ -155,6 +156,11 @@ export default async function SettingPage({
   const reuniones = reunionesRaw.filter(
     (r) => r["Prospecto"] && inR(r["Fecha de la agenda"])
   );
+
+  // Agendas del downsell (pestaña Downsell) en el período, para «agendas DS» y el costo final por canal.
+  const reunDs = reunionesDsRaw.filter((r) => r["Prospecto"] && inR(r["Fecha de la agenda"]));
+  const reunDsPrev = reunionesDsRaw.filter((r) => r["Prospecto"] && inRPrev(r["Fecha de la agenda"]));
+  const canalDe = (c: string) => (c === "Publi a VSL" ? "VSL" : c === "ADS Mje IG" ? "MSG IG" : c === "ADS Mje WAPP" ? "MSG WAPP" : isFMACanal(c) ? "FMA" : c.trim().toLowerCase() === "form" ? "Form" : c.trim());
 
   // Helper: reuniones by exact canal match (case-insensitive)
   const byCanal = (canal: string) =>
@@ -210,7 +216,8 @@ export default async function SettingPage({
   })).filter((b) => b.agendas > 0);
 
   // Individual "otros" canals (non-VSL, non-IG, non-FMA)
-  const otrasCanalesNames = [...new Set(reunOtros.map((r) => r["Canal"].trim()))].sort();
+  const CONOCIDOS = ["VSL", "MSG IG", "MSG WAPP", "FMA", "Form"];
+  const otrasCanalesNames = [...new Set([...reunOtros.map((r) => r["Canal"].trim()), ...reunDs.map((r) => canalDe(r["Canal"] ?? "")).filter((c) => c && !CONOCIDOS.includes(c))])].sort();
 
   // ── Outbound data (needed early for Análisis de Leads) ───────────────────
 
@@ -654,7 +661,7 @@ export default async function SettingPage({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-700">
-                {["Canal", "$ Inversión", "Agendas", "Costo/Agenda"].map((h) => (
+                {["Canal", "$ Inversión", "Agendas principal", "Costo/Agenda", "Agendas downsell", "Costo/Agenda final"].map((h) => (
                   <th key={h} className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase first:text-left">{h}</th>
                 ))}
               </tr>
@@ -673,8 +680,9 @@ export default async function SettingPage({
                   rows: reuniones.filter((r) => r["Canal"].trim() === canal),
                   rowsPrev: reunPrev.filter((r) => r["Canal"].trim() === canal),
                 })),
-              ].filter((c) => c.gasto > 0 || c.rows.length > 0) // canales en cero (Form, MSG IG…) no se muestran
-               .map(({ nombre, gasto, gastoPrev, rows, rowsPrev }) => {
+              ].map((c) => ({ ...c, ds: reunDs.filter((r) => canalDe(r["Canal"] ?? "") === c.nombre).length, dsPrev: reunDsPrev.filter((r) => canalDe(r["Canal"] ?? "") === c.nombre).length }))
+               .filter((c) => c.gasto > 0 || c.rows.length > 0 || c.ds > 0) // canales en cero (Form, MSG IG…) no se muestran
+               .map(({ nombre, gasto, gastoPrev, rows, rowsPrev, ds, dsPrev }) => {
                 const ag   = rows.length;
                 const agP  = rowsPrev.length;
                 const costAg  = cpa(gasto, ag);
@@ -699,6 +707,18 @@ export default async function SettingPage({
                         </>
                       )}
                     </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-white font-bold">{ds || "—"}</span>
+                      {dsPrev > 0 && <p className="text-[10px] text-slate-600 mt-0.5">ant: {dsPrev}</p>}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {gasto > 0 ? (
+                        <>
+                          <span className="text-amber-400 font-semibold">{fmtUSD(cpa(gasto, ag + ds))}</span>
+                          {cpa(gastoPrev, agP + dsPrev) && <p className="text-[10px] text-slate-600 mt-0.5">ant: {fmtUSD(cpa(gastoPrev, agP + dsPrev))}</p>}
+                        </>
+                      ) : <span className="text-slate-600">—</span>}
+                    </td>
                   </tr>
                 );
               })}
@@ -722,6 +742,14 @@ export default async function SettingPage({
                     <td className="px-4 py-3 text-center">
                       <span className="text-amber-400 font-bold">{fmtUSD(c)}</span>
                       {cP && <p className="text-[10px] text-slate-600 mt-0.5">ant: {fmtUSD(cP)}</p>}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-white font-bold">{reunDs.length}</span>
+                      {reunDsPrev.length > 0 && <p className="text-[10px] text-slate-600 mt-0.5">ant: {reunDsPrev.length}</p>}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-amber-400 font-bold">{fmtUSD(cpa(gastoTotal, ag + reunDs.length))}</span>
+                      {cpa(gastoTotalPrev, agP + reunDsPrev.length) && <p className="text-[10px] text-slate-600 mt-0.5">ant: {fmtUSD(cpa(gastoTotalPrev, agP + reunDsPrev.length))}</p>}
                     </td>
                   </tr>
                 );
