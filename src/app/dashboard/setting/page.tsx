@@ -432,7 +432,7 @@ export default async function SettingPage({
   // ── SECTION OUTBOUND ─────────────────────────────────────────────────────
 
   const inicios       = sumInt(analisisFMA, "Inicios") + sumInt(manyPer, "Seguidores Many");
-  const noNegocio     = sumInt(analisisFMA, "No tienen negocio") + sumInt(manyPer, "No tienen negocio");
+  const noNegocio     = sumInt(analisisFMA, "No tienen negocio") + sumInt(manyPer, "No tiene Negocio");
   const clicDiag      = sumInt(manyPer, "Clic diagnóstico (Many)");
   const diagMany      = sumInt(manyPer, "Diagnósticos (Many)");
   const agMany        = sumInt(manyPer, "Agendas (Many)");

@@ -116,17 +116,6 @@ async function eventosManychat(dia: string) {
   return { manychatActivo: hay, nuevo_seguidor: n("nuevo_seguidor"), tiene_negocio: n("tiene_negocio"), click_diagnostico: n("click_diagnostico"), no_tiene_negocio: n("no_tiene_negocio") };
 }
 
-async function asegurarEncabezado(pestana: string, cols: Record<string, string>) {
-  const s = hojas();
-  // Si la pestaña tiene menos columnas que las que se van a usar, se agregan al final.
-  const prop = (await s.spreadsheets.get({ spreadsheetId: SETTING, fields: "sheets.properties" })).data.sheets!.find((x) => x.properties!.title === pestana)!.properties!;
-  const falta = Math.max(...Object.keys(cols).map((l) => l.charCodeAt(0) - 64)) - (prop.gridProperties?.columnCount ?? 26);
-  if (falta > 0) await s.spreadsheets.batchUpdate({ spreadsheetId: SETTING, requestBody: { requests: [{ appendDimension: { sheetId: prop.sheetId, dimension: "COLUMNS", length: falta } }] } });
-  const fila1 = (await s.spreadsheets.values.get({ spreadsheetId: SETTING, range: `'${pestana}'!A1:Z1` })).data.values?.[0] ?? [];
-  const data = Object.entries(cols).filter(([l]) => !fila1[l.charCodeAt(0) - 65]).map(([l, t]) => ({ range: `'${pestana}'!${l}1`, values: [[t]] }));
-  if (data.length) await s.spreadsheets.values.batchUpdate({ spreadsheetId: SETTING, requestBody: { valueInputOption: "RAW", data } });
-}
-
 async function asegurarPestanaDiag() {
   const s = hojas();
   const meta = await s.spreadsheets.get({ spreadsheetId: SETTING, fields: "sheets.properties.title" });
@@ -151,11 +140,14 @@ export async function cargarDia(dia: string, pisar = false) {
   const mc = await eventosManychat(dia);
   const agMc = await agendasDiagnostico(dia, "manychat-seguidor");
   const diagMc = (await diagnosticosDia(dia)).manychat;
-  await asegurarEncabezado("FMA", { P: "Clic diagnóstico (Many)", Q: "Diagnósticos (Many)", R: "Agendas (Many)", S: "Agendas DS (Many)", T: "No tienen negocio" });
   if (!aMano) escrito.push(...await escribirDia("FMA", dia, {
     "$": suma(fma, "gasto"), "Comentarios": suma(fma, "comentarios"), "Seguidores Ads Man": suma(fma, "seguidores"),
-    ...(mc.manychatActivo ? { "Seguidores Many": mc.nuevo_seguidor, "Tienen negocio": mc.tiene_negocio, "No tienen negocio": mc.no_tiene_negocio, "Clic diagnóstico (Many)": mc.click_diagnostico } : {}),
+    ...(mc.manychatActivo ? { "Seguidores Many": mc.nuevo_seguidor, "Tienen negocio": mc.tiene_negocio, "No tiene Negocio": mc.no_tiene_negocio, "Clic diagnóstico (Many)": mc.click_diagnostico } : {}),
     "Diagnósticos (Many)": diagMc, "Agendas (Many)": agMc.principal, "Agendas DS (Many)": agMc.downsell,
+    // Fórmulas de la fila (columnas que armó Fran el 16-11); se buscan por título, como todo lo demás.
+    "Respondieron": "={Tienen negocio}+{No tiene Negocio}", "%": '=IFERROR({Respondieron}/{Seguidores Many};"")',
+    "$ Tiene un Neg": '=IFERROR({$}/{Tienen negocio};"")', "Costo Agenda Ppal": '=IFERROR({$}/{Agendas (Many)};"")',
+    "Costo agenda Final": '=IFERROR({$}/({Agendas (Many)}+{Agendas DS (Many)});"")',
   }));
 
   if (directo.length || blog.length) {
