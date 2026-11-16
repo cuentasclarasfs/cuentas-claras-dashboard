@@ -78,11 +78,13 @@ export async function leerHojas(): Promise<FilaHoja[]> {
 }
 
 /** Une filas del Sheets con reuniones de la base: mismo nombre a ±45 días (se reagenda cambiando la fecha), la más cercana primero; una cancelada solo si no hay otra. */
-export function cruzar(filas: FilaHoja[], db: { id: string; nombre: string; fecha_reu: string; cancelada: boolean }[]) {
+export function cruzar(filas: FilaHoja[], db: { id: string; nombre: string; fecha_reu: string; cancelada: boolean; embudo?: string }[]) {
   const pares: { f: FilaHoja; id: string; costo: number }[] = [];
   for (const f of filas) if (!f.repetidaDe) for (const r of db) {
     const dias = Math.abs(new Date(r.fecha_reu).getTime() - f.reu.getTime()) / DIA;
-    if (dias < 45 && parecido(r.nombre ?? "", f.nombre)) pares.push({ f, id: r.id, costo: dias + (r.cancelada ? 60 : 0) });
+    // Una agenda del downsell prefiere una fila de la pestaña Downsell (y al revés): la misma persona puede tener las dos reuniones.
+    const otraPestana = r.embudo && (r.embudo === "downsell") !== (f.hoja === "Downsell") ? 30 : 0;
+    if (dias < 45 && parecido(r.nombre ?? "", f.nombre)) pares.push({ f, id: r.id, costo: dias + (r.cancelada ? 60 : 0) + otraPestana });
   }
   pares.sort((a, b) => a.costo - b.costo);
   const usados = new Set<string>();

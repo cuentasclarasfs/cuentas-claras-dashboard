@@ -41,10 +41,18 @@ export async function metaDia(dia: string): Promise<Campana[]> {
 const suma = (cs: Campana[], k: keyof Omit<Campana, "nombre">) => Math.round(cs.reduce((s, c) => s + c[k], 0) * 100) / 100;
 const dma = (dia: string) => dia.split("-").reverse().map((x, i) => (i < 2 ? String(Number(x)) : x)).join("/");
 
-/** Escribe valores en la fila del día (columna A = fecha), solo en celdas vacías. Si no hay fila para ese día, la agrega al final. */
+const letra = (i: number) => (i >= 26 ? String.fromCharCode(64 + Math.floor(i / 26)) : "") + String.fromCharCode(65 + (i % 26));
+const limpio = (t: unknown) => String(t ?? "").trim().toLowerCase();
+
+/**
+ * Escribe en la fila del día (columna A = fecha), solo en celdas vacías. Si no hay fila para ese día, la agrega al final.
+ * Las columnas se buscan por su TÍTULO en la fila 1 (Fran reordena columnas); en fórmulas, «{Título}» = esa celda de esta fila.
+ */
 async function escribirDia(pestana: string, dia: string, valores: Record<string, string | number>) {
   const s = hojas();
-  const v = (await s.spreadsheets.values.get({ spreadsheetId: SETTING, range: `'${pestana}'!A:Z`, valueRenderOption: "UNFORMATTED_VALUE" })).data.values ?? [];
+  const v = (await s.spreadsheets.values.get({ spreadsheetId: SETTING, range: `'${pestana}'!A:AZ`, valueRenderOption: "UNFORMATTED_VALUE" })).data.values ?? [];
+  const titulos = (v[0] ?? []).map(limpio);
+  const idx = (t: string) => titulos.indexOf(limpio(t));
   const serie = aSerie(new Date(dia + "T15:00:00Z"));
   let fila = v.findIndex((r) => { const f = fechaCelda(r[0]); return f && aSerie(f) === serie; }) + 1;
   if (!fila) {
@@ -52,19 +60,25 @@ async function escribirDia(pestana: string, dia: string, valores: Record<string,
     await s.spreadsheets.values.update({ spreadsheetId: SETTING, range: `'${pestana}'!A${fila}`, valueInputOption: "USER_ENTERED", requestBody: { values: [[dma(dia)]] } });
     v[fila - 1] = [];
   }
-  const col = (l: string) => l.charCodeAt(0) - 65;
+  const celda = (t: string) => { const i = idx(t); if (i < 0) throw new Error(`${pestana}: no encuentro la columna «${t}»`); return letra(i) + fila; };
   const data = Object.entries(valores)
-    .filter(([l]) => v[fila - 1]?.[col(l)] === undefined || v[fila - 1][col(l)] === "")
-    .map(([l, val]) => ({ range: `'${pestana}'!${l}${fila}`, values: [[typeof val === "string" ? val.replace(/#/g, String(fila)) : val]] })); // «B#» = celda B de esta fila
+    .filter(([t]) => idx(t) >= 0 && (v[fila - 1]?.[idx(t)] === undefined || v[fila - 1][idx(t)] === ""))
+    .map(([t, val]) => ({ range: `'${pestana}'!${celda(t)}`, values: [[typeof val === "string" ? val.replace(/\{([^}]+)\}/g, (_, x) => celda(x)) : val]] }));
   if (data.length) await s.spreadsheets.values.batchUpdate({ spreadsheetId: SETTING, requestBody: { valueInputOption: "USER_ENTERED", data } });
   return data.map((d) => d.range);
 }
 
-/** Agendas «Publi a VSL» de un día según el Sheets Equipo Ventas (Resumen = principal, Downsell = downsell), por fecha de agenda. */
-async function agendasVSL(dia: string) {
+/**
+ * Agendas que trajo el VSL un día, por fecha de agenda. Principal: filas «Publi a VSL» de Resumen Reuniones (lo que contaba Fran).
+ * Downsell: agendas del downsell que vinieron del VSL (link con utm vsl-…, un Calendly de VSL derivado, o canal «Publi a VSL»).
+ */
+export async function agendasVSL(dia: string) {
   const serie = aSerie(new Date(dia + "T15:00:00Z"));
-  const filas = (await leerHojas()).filter((f) => f.datos.canal === "Publi a VSL" && fechaCelda(f.c[12]) && aSerie(fechaCelda(f.c[12])!) === serie);
-  return { principal: filas.filter((f) => f.hoja === "Resumen Reuniones").length, downsell: filas.filter((f) => f.hoja === "Downsell").length };
+  const principal = (await leerHojas()).filter((f) => f.hoja === "Resumen Reuniones" && f.datos.canal === "Publi a VSL" && fechaCelda(f.c[12]) && aSerie(fechaCelda(f.c[12])!) === serie).length;
+  const [{ n }] = (await sql`SELECT count(*)::int n FROM reuniones WHERE embudo='downsell' AND NOT cancelada AND NOT descartada
+    AND (utm_source LIKE 'vsl-%' OR evento IN ('TB','FPG','MZ','RMK','V','V1','V2') OR canal='Publi a VSL')
+    AND (fecha_agenda AT TIME ZONE 'America/Argentina/Buenos_Aires')::date = ${dia}::date`) as { n: number }[];
+  return { principal, downsell: n };
 }
 
 /** Diagnósticos completados por campaña ese día (leads de la web, campo «origen»). */
@@ -113,7 +127,7 @@ async function asegurarEncabezado(pestana: string, cols: Record<string, string>)
 async function asegurarPestanaDiag() {
   const s = hojas();
   const meta = await s.spreadsheets.get({ spreadsheetId: SETTING, fields: "sheets.properties.title" });
-  if (meta.data.sheets!.some((x) => x.properties!.title === PESTANA_DIAG)) return asegurarEncabezado(PESTANA_DIAG, { P: ENCABEZADO_DIAG[15], Q: ENCABEZADO_DIAG[16] });
+  if (meta.data.sheets!.some((x) => x.properties!.title === PESTANA_DIAG)) return;
   await s.spreadsheets.batchUpdate({ spreadsheetId: SETTING, requestBody: { requests: [{ addSheet: { properties: { title: PESTANA_DIAG, gridProperties: { frozenRowCount: 1 } } } }] } });
   await s.spreadsheets.values.update({ spreadsheetId: SETTING, range: `'${PESTANA_DIAG}'!A1`, valueInputOption: "RAW", requestBody: { values: [ENCABEZADO_DIAG] } });
 }
@@ -126,17 +140,18 @@ export async function cargarDia(dia: string) {
   const ag = await agendasVSL(dia);
   const escrito: string[] = [];
 
-  escrito.push(...await escribirDia("VSL", dia, { B: suma(vsl, "gasto"), C: ag.principal, E: suma(vsl, "visitas"), G: ag.downsell, H: '=IFERROR(B#/(C#+N(G#));"")' }));
-  escrito.push(...await escribirDia("MSG WAPP", dia, { B: suma(wapp, "gasto"), C: suma(wapp, "mensajes") }));
+  escrito.push(...await escribirDia("VSL", dia, { "Gasto": suma(vsl, "gasto"), "Agendas": ag.principal, "Visitas a la pagina": suma(vsl, "visitas"), "Agendas DS": ag.downsell,
+    "Costo c/DS": '=IFERROR({Gasto}/({Agendas}+N({Agendas DS}));"")' }));
+  escrito.push(...await escribirDia("MSG WAPP", dia, { "$": suma(wapp, "gasto"), "Ads Manager": suma(wapp, "mensajes") }));
   // FMA: lo de Meta + lo que avisa ManyChat (etiquetas) + diagnósticos y agendas que vinieron del link de ManyChat.
   const mc = await eventosManychat(dia);
   const agMc = await agendasDiagnostico(dia, "manychat-seguidor");
   const diagMc = (await diagnosticosDia(dia)).manychat;
   await asegurarEncabezado("FMA", { P: "Clic diagnóstico (Many)", Q: "Diagnósticos (Many)", R: "Agendas (Many)", S: "Agendas DS (Many)" });
   escrito.push(...await escribirDia("FMA", dia, {
-    B: suma(fma, "gasto"), C: suma(fma, "comentarios"), D: suma(fma, "seguidores"),
-    ...(mc.manychatActivo ? { E: mc.nuevo_seguidor, F: mc.tiene_negocio, P: mc.click_diagnostico } : {}),
-    Q: diagMc, R: agMc.principal, S: agMc.downsell,
+    "$": suma(fma, "gasto"), "Comentarios": suma(fma, "comentarios"), "Seguidores Ads Man": suma(fma, "seguidores"),
+    ...(mc.manychatActivo ? { "Seguidores Many": mc.nuevo_seguidor, "Tienen negocio": mc.tiene_negocio, "Clic diagnóstico (Many)": mc.click_diagnostico } : {}),
+    "Diagnósticos (Many)": diagMc, "Agendas (Many)": agMc.principal, "Agendas DS (Many)": agMc.downsell,
   }));
 
   if (directo.length || blog.length) {
@@ -144,10 +159,12 @@ export async function cargarDia(dia: string) {
     const diag = await diagnosticosDia(dia);
     const [aD, aB] = await Promise.all([agendasDiagnostico(dia, "anuncio-directo"), agendasDiagnostico(dia, "anuncio-plata")]);
     const div = (a: string, b: string) => `=IFERROR(${a}/${b};"")`;
+    const H = ENCABEZADO_DIAG;
     escrito.push(...await escribirDia(PESTANA_DIAG, dia, {
-      B: suma(directo, "gasto"), C: suma(directo, "visitas"), D: diag.directo, E: aD.principal, F: aD.downsell, G: div("B#", "D#"), H: div("B#", "E#"),
-      I: suma(blog, "gasto"), J: suma(blog, "visitas"), K: diag.blog, L: aB.principal, M: aB.downsell, N: div("I#", "K#"), O: div("I#", "L#"),
-      P: div("B#", "(E#+F#)"), Q: div("I#", "(L#+M#)"),
+      [H[1]]: suma(directo, "gasto"), [H[2]]: suma(directo, "visitas"), [H[3]]: diag.directo, [H[4]]: aD.principal, [H[5]]: aD.downsell,
+      [H[6]]: div(`{${H[1]}}`, `{${H[3]}}`), [H[7]]: div(`{${H[1]}}`, `{${H[4]}}`), [H[15]]: div(`{${H[1]}}`, `({${H[4]}}+{${H[5]}})`),
+      [H[8]]: suma(blog, "gasto"), [H[9]]: suma(blog, "visitas"), [H[10]]: diag.blog, [H[11]]: aB.principal, [H[12]]: aB.downsell,
+      [H[13]]: div(`{${H[8]}}`, `{${H[10]}}`), [H[14]]: div(`{${H[8]}}`, `{${H[11]}}`), [H[16]]: div(`{${H[8]}}`, `({${H[11]}}+{${H[12]}})`),
     }));
   }
   return escrito;
