@@ -31,6 +31,9 @@ export default async function Reuniones({ searchParams }: { searchParams: Promis
         AND fecha_reu > now() - interval '30 days' AND fecha_reu < now() + interval '14 days'
       ORDER BY fecha_reu`) as Reunion[];
 
+  // Señas grandes que todavía no son clientes: que cada closer las tenga presentes (fecha de reunión sin límite).
+  const senas = (await sql`SELECT * FROM reuniones WHERE status='Seña Pie Adentro' AND NOT descartada
+      AND (${closer} = '' OR closer_mail = ${closer}) ORDER BY fecha_reu DESC`) as Reunion[];
   const diag = await leadsDiagnostico();
   const d = (r: Reunion) => ({ lead: diag.buscar(r.mail, r.telefono), sabe: new Date(r.fecha_agenda ?? r.fecha_reu).getTime() >= diag.desde });
   const ahora = Date.now();
@@ -54,6 +57,9 @@ export default async function Reuniones({ searchParams }: { searchParams: Promis
         )}
       />
 
+      <Seccion titulo={`Seña Pie Adentro${CLOSERS[yo] ? " a tu nombre" : ""} (${senas.length})`} vacio="Nadie en Seña Pie Adentro.">
+        {senas.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} conForm verCloser={!CLOSERS[yo]} />)}
+      </Seccion>
       <Seccion titulo={`Pendientes de completar (${pendientes.length})`} vacio="Nada pendiente.">
         {pendientes.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} conForm verCloser={!CLOSERS[yo]} />)}
       </Seccion>
@@ -97,6 +103,7 @@ function Tarjeta({ r, diag, conForm, verCloser }: { r: Reunion; diag: { lead: Le
       {diag.lead ? (
         <p className="text-sm mt-1 text-emerald-400">
           Diagnóstico hecho ✓ · {diag.lead.nivel} · {diag.lead.sintomas} síntomas · {new Date(diag.lead.fecha).toLocaleDateString("es-AR")} · no hace falta pedírselo
+          {" · "}<a href={`/dashboard/reuniones/diagnostico?id=${diag.lead.id}`} className="underline hover:text-emerald-300">Ver diagnóstico completo</a>
         </p>
       ) : diag.sabe && <p className="text-sm mt-1 text-amber-400">Todavía no hizo el diagnóstico</p>}
       {whatsapp(r.telefono) && (

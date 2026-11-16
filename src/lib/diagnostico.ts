@@ -1,5 +1,8 @@
 // Leads del diagnóstico de la web (cuentasclarasfs.com/diagnostico), los mismos que ve el setter en /equipo.
-export type LeadDiag = { fecha: string; mail: string; wa: string; nivel: string; sintomas: number; factura: boolean; objetivo: string };
+export type LeadDiag = {
+  id: number; fecha: string; nombre: string; mail: string; wa: string; instagram: string; nivel: string; sintomas: number;
+  factura: boolean; objetivo: string; origen: string; frases: string[];
+};
 
 // "+54 9 11 7282-9255" y "5491172829255" → "1172829255": así cruzan el teléfono de Calendly y el del diagnóstico.
 export const telCorto = (t: string | null) => {
@@ -23,11 +26,12 @@ export async function leadsDiagnostico() {
     }
     const desde = leads.length ? new Date(leads[leads.length - 1].fecha).getTime() : Infinity;
     return {
+      porId: (id: number) => leads.find((l) => l.id === id) ?? null,
       buscar: (mail: string | null, tel: string | null) =>
         porMail.get((mail ?? "").toLowerCase().trim()) ?? porTel.get(telCorto(tel)) ?? null,
       desde, // antes de esta fecha no hay datos: no se puede decir «no lo hizo»
     };
   } catch {
-    return { buscar: () => null, desde: Infinity }; // si la web no responde, la pantalla anda igual
+    return { porId: () => null, buscar: () => null, desde: Infinity }; // si la web no responde, la pantalla anda igual
   }
 }

@@ -2,7 +2,7 @@ import {
   getSettingMsgIG, getSettingMsgIGA, getSettingTiposLeads, getSettingAnalisisFMA, getSettingAnalisisMsgIG,
   getVentasReuniones, isClosedStatus, parseUSD,
   getMarketingVSL, getMarketingFMA, getMarketingFORM, getMarketingMsgWapp, getContenidoPosteos, getContenidoHistorias,
-  getComparativaA,
+  getComparativaA, getDiagnosticoADS,
 } from "@/lib/sheets";
 import {
   AdsIgBarChart, FmaBarChart, TotalGeneralBarChart,
@@ -116,7 +116,7 @@ export default async function SettingPage({
   const range = sp.from && sp.to ? { from: sp.from, to: sp.to } : defaultRange();
   const prev  = prevRange(range.from, range.to);
 
-  const [msgIGRaw, msgIGARaw, tiposLeadsRaw, analisisFMARaw, analisisMsgIGRaw, reunionesRaw, vslRaw, fmaRawData, formRawData, comparativaARaw, wappRawData] = await Promise.all([
+  const [msgIGRaw, msgIGARaw, tiposLeadsRaw, analisisFMARaw, analisisMsgIGRaw, reunionesRaw, vslRaw, fmaRawData, formRawData, comparativaARaw, wappRawData, diagRaw] = await Promise.all([
     getSettingMsgIG(),
     getSettingMsgIGA(),
     getSettingTiposLeads(),
@@ -128,6 +128,7 @@ export default async function SettingPage({
     getMarketingFORM(),
     getComparativaA(),
     getMarketingMsgWapp(),
+    getDiagnosticoADS(),
   ]);
 
   // Contenido sheets (may not be configured)
@@ -171,8 +172,14 @@ export default async function SettingPage({
   const gastoFMAPrev = fmaRawData.filter((r) => inRPrev(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["$"] ?? ""), 0);
   const gastoFORMPrev = formRawData.filter((r) => inRPrev(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["$"] ?? ""), 0);
   const gastoWAPPPrev = wappRawData.filter((r) => inRPrev(r["Fecha"] ?? "")).reduce((s, r) => s + parseUSD(r["$"] ?? ""), 0);
-  const gastoTotal   = gastoVSL + gastoIG + gastoFMA + gastoFORM + gastoWAPP;
-  const gastoTotalPrev = gastoVSLPrev + gastoIGPrev + gastoFMAPrev + gastoFORMPrev + gastoWAPPPrev;
+  // Campañas al diagnóstico (pestaña «Diagnóstico ADS»): su gasto va al canal del Sheets con el mismo nombre.
+  const sumaDiag = (col: string, dentro: (d: string) => boolean) => diagRaw.filter((r) => dentro(r["Fecha"])).reduce((t, r) => t + parseUSD(r[col] ?? ""), 0);
+  const gastoCanalDiag: Record<string, [number, number]> = {
+    "Diagnostico Directo": [sumaDiag("$ Directo", inR), sumaDiag("$ Directo", inRPrev)],
+    "Blog Diagnostico":    [sumaDiag("$ Blog", inR),    sumaDiag("$ Blog", inRPrev)],
+  };
+  const gastoTotal   = gastoVSL + gastoIG + gastoFMA + gastoFORM + gastoWAPP + gastoCanalDiag["Diagnostico Directo"][0] + gastoCanalDiag["Blog Diagnostico"][0];
+  const gastoTotalPrev = gastoVSLPrev + gastoIGPrev + gastoFMAPrev + gastoFORMPrev + gastoWAPPPrev + gastoCanalDiag["Diagnostico Directo"][1] + gastoCanalDiag["Blog Diagnostico"][1];
 
   // Agendas by channel
   const reunVSL   = reuniones.filter((r) => r["Canal"] === "Publi a VSL");
@@ -661,12 +668,13 @@ export default async function SettingPage({
                 { nombre: "Form",         gasto: gastoFORM, gastoPrev: gastoFORMPrev, rows: reunForm,  rowsPrev: reunFormPrev  },
                 ...otrasCanalesNames.map((canal) => ({
                   nombre: canal,
-                  gasto: 0,
-                  gastoPrev: 0,
+                  gasto: gastoCanalDiag[canal]?.[0] ?? 0,
+                  gastoPrev: gastoCanalDiag[canal]?.[1] ?? 0,
                   rows: reuniones.filter((r) => r["Canal"].trim() === canal),
                   rowsPrev: reunPrev.filter((r) => r["Canal"].trim() === canal),
                 })),
-              ].map(({ nombre, gasto, gastoPrev, rows, rowsPrev }) => {
+              ].filter((c) => c.gasto > 0 || c.rows.length > 0) // canales en cero (Form, MSG IG…) no se muestran
+               .map(({ nombre, gasto, gastoPrev, rows, rowsPrev }) => {
                 const ag   = rows.length;
                 const agP  = rowsPrev.length;
                 const costAg  = cpa(gasto, ag);
@@ -1582,6 +1590,38 @@ export default async function SettingPage({
             <p className="text-[11px] text-emerald-400 mt-0.5">{pct(wappCierres, wappAgendas)} CR</p>
           )}
         </div>
+      </div>
+
+      {/* ── EMBUDO DE LAS CAMPAÑAS AL DIAGNÓSTICO (pestaña «Diagnóstico ADS») ── */}
+      <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mt-10 mb-3">Campañas al diagnóstico</h2>
+      <div className="grid md:grid-cols-2 gap-4 mb-8">
+        {([["Diagnóstico · video directo", "Directo", "Diagnostico Directo"], ["Plata · artículo · estáticos", "Blog", "Blog Diagnostico"]] as const).map(([titulo, k, canal]) => {
+          const t = (col: string) => sumaDiag(col, inR);
+          const gasto = t(`$ ${k}`), visitas = t(`Visitas ${k}`), diags = t(`Diagnósticos ${k}`), ag = t(`Agendas ${k}`), agDs = t(`Agendas DS ${k}`);
+          const cierres = byCanal(canal).filter((r) => isClosedStatus(r["Status"])).length;
+          const pasos: [string, number, string | null][] = [
+            ["Gasto", gasto, null],
+            ["Visitas a la página", visitas, gasto > 0 && visitas > 0 ? `${fmtUSD(gasto / visitas)} c/u` : null],
+            ["Diagnósticos completados", diags, visitas > 0 ? `${pct(diags, visitas)} de las visitas · ${fmtUSD(diags > 0 ? gasto / diags : null)} c/u` : null],
+            ["Agendas principal", ag, diags > 0 ? `${pct(ag, diags)} de los diagnósticos · ${fmtUSD(ag > 0 ? gasto / ag : null)} c/u` : null],
+            ["Agendas downsell", agDs, `Total con DS: ${ag + agDs} · ${fmtUSD(ag + agDs > 0 ? gasto / (ag + agDs) : null)} c/u`],
+            ["Cierres (principal)", cierres, ag > 0 ? `${pct(cierres, ag)} de las agendas · CAC ${fmtUSD(cierres > 0 ? gasto / cierres : null)}` : null],
+          ];
+          return (
+            <div key={k} className="card">
+              <p className="text-sm font-semibold text-white mb-3">{titulo}</p>
+              {pasos.map(([nombre, valor, detalle]) => (
+                <div key={nombre} className="flex items-baseline justify-between border-b border-surface-800/60 py-2">
+                  <span className="text-sm text-slate-400">{nombre}</span>
+                  <span className="text-right">
+                    <span className="text-white font-bold">{nombre === "Gasto" ? fmtUSD(valor) : Math.round(valor)}</span>
+                    {detalle && <span className="block text-[11px] text-amber-400">{detalle}</span>}
+                  </span>
+                </div>
+              ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

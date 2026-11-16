@@ -1,0 +1,37 @@
+{
+ "Nivel 1": {
+  "titulo": "Tenés el control",
+  "color": "#16a34a",
+  "sit": "Sos de los pocos. Tenés visibilidad real sobre tu negocio: sabés cuánto ganás y decidís con información.",
+  "reunion": "No necesitás ordenar el caos: necesitás ir al siguiente nivel. En la entrevista vemos dónde podés ganar más y cómo crecer con método.",
+  "critico": "No te dejes estar. Lo que hoy tenés bajo control puede desordenarse rápido si crecés sin método, y el siguiente nivel no se gestiona igual que el actual."
+ },
+ "Nivel 2": {
+  "titulo": "Tu negocio tiene zonas oscuras",
+  "color": "#ca8a04",
+  "sit": "Manejás algunas cosas, pero hay zonas importantes que no ves. Estás decidiendo con información parcial, y probablemente sentís que algo no termina de cerrar.",
+  "reunion": "En la entrevista iluminamos esas zonas: dónde se te escapa plata, cuál es tu producto más rentable de verdad y qué podés empezar a decidir con datos.",
+  "critico": "Casi seguro estás perdiendo plata en algún lado sin darte cuenta, o dejando pasar oportunidades porque no las ves. No es un problema de esfuerzo: es un problema de visibilidad."
+ },
+ "Nivel 3": {
+  "titulo": "Estás volando a ciegas",
+  "color": "#ea580c",
+  "sit": "Es lo que les pasa a la mayoría de los dueños que vemos. No es falta de esfuerzo: es falta de información. Trabajás muchísimo, pero decidís cada semana sin saber si te conviene.",
+  "reunion": "En la entrevista vemos las 3 cosas que tenés que ordenar primero. Sin teoría: qué hacer y por dónde empezar.",
+  "critico": "La sensación de «trabajo todo el día y no avanzo» tiene una explicación concreta: estás administrando algo sin saber si te da o no te da. Cada mes así te cuesta plata real: la que dejaste de ganar por no saber cuál es tu producto más rentable, la que perdiste por un costo que te comía el margen y las oportunidades que se fueron mientras postergabas decisiones."
+ },
+ "Nivel 4": {
+  "titulo": "Negocio fuerte, gestión a ciegas",
+  "color": "#92278F",
+  "sit": "Tu negocio funciona, factura y crece. Pero no sabés con certeza por qué. La facturación te da una falsa sensación de control.",
+  "reunion": "Tu negocio no necesita un rescate: necesita pasar de la intuición a la información sin frenar el crecimiento. En la entrevista te mostramos cómo.",
+  "critico": "Mientras todo sube, parece que todo está bien. Pero cuando algo se mueve (un mes flojo, un proveedor que falla, una decisión grande) descubrís que no tenías el mapa. Los negocios como el tuyo no quiebran de un día para el otro: se desgastan. Y cuando deciden ordenarse, ya perdieron mucha plata sin saberlo."
+ },
+ "Nivel 5": {
+  "titulo": "Crisis silenciosa",
+  "color": "#dc2626",
+  "sit": "Tu negocio funciona por inercia, no por gestión, y la plata ya no alcanza tranquila. Cada decisión es una apuesta.",
+  "reunion": "En la entrevista vamos directo a lo más urgente. La buena noticia: esto tiene solución, y hay que empezar ya.",
+  "critico": "Es el perfil del dueño que de repente no sabe cómo llegó hasta acá. Casi siempre se podía evitar con la información a tiempo. Estás trabajando muchísimo para sostener algo que no sabés si te conviene sostener."
+ }
+}

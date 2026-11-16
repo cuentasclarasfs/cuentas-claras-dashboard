@@ -500,6 +500,12 @@ export async function getMarketingMsgIG() {
   return rowsToObjects(rows);
 }
 
+// «Diagnóstico ADS» (la carga sola cada mañana): columnas por título, así se pueden reordenar.
+export async function getDiagnosticoADS(): Promise<Record<string, string>[]> {
+  const rows = await getSheet(process.env.SHEET_ID_SETTING!, "'Diagnóstico ADS'!A:Z");
+  return rowsToObjects(rows).filter((r) => r["Fecha"]?.trim());
+}
+
 export async function getMarketingMsgWapp(): Promise<Record<string, string>[]> {
   const rows = await getSheet(process.env.SHEET_ID_SETTING!, "MSG WAPP!A:N");
   if (rows.length < 2) return [];
