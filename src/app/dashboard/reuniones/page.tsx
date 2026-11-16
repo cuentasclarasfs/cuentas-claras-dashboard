@@ -94,7 +94,7 @@ export default async function Reuniones({ searchParams }: { searchParams: Promis
       <Seccion titulo={`Completadas · últimos 30 días (${hechas.length})`} vacio={buscando ? "No encontré ninguna con esa búsqueda." : "Todavía no hay reuniones completadas."} abierta={buscando} arriba={buscador}>
         {hechas.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} conForm verCloser={!CLOSERS[yo]} />)}
       </Seccion>
-      <Seccion titulo={`Anteriores${st ? ` (${viejas.length})` : ""}`} vacio={buscando ? "No encontré ninguna con esa búsqueda." : "No hay reuniones anteriores."} abierta={buscando} arriba={buscador}>
+      <Seccion titulo={`Anteriores${st ? ` (${viejas.length === 300 ? "las 300 más recientes" : viejas.length})` : ""}`} vacio={buscando ? "No encontré ninguna con esa búsqueda." : "No hay reuniones anteriores."} abierta={buscando} arriba={buscador}>
         {viejas.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} conForm verCloser={!CLOSERS[yo]} />)}
       </Seccion>
     </div>
