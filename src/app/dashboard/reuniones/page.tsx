@@ -43,7 +43,17 @@ export default async function Reuniones({ searchParams }: { searchParams: Promis
   const ahora = Date.now();
   const pendientes = rows.filter((r) => !r.cancelada && !r.status && new Date(r.fecha_reu).getTime() < ahora);
   const proximas = rows.filter((r) => !r.cancelada && new Date(r.fecha_reu).getTime() >= ahora);
-  const hechas = rows.filter((r) => r.status).reverse();
+  const busca = (r: Reunion) => !q || `${r.nombre} ${r.mail ?? ""}`.toLowerCase().includes(q.toLowerCase());
+  const hechas = rows.filter((r) => r.status && busca(r)).reverse();
+  // Un solo buscador (nombre o mail) para Completadas y Anteriores.
+  const buscador = (
+    <form className="flex gap-2 mb-3">
+      {!CLOSERS[yo] && closer && <input type="hidden" name="closer" value={closer} />}
+      <input name="q" defaultValue={q} placeholder="Buscar por nombre o mail" className="bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-sm text-slate-200 w-full max-w-sm" />
+      <button className="bg-brand-600 text-white text-sm rounded-lg px-3 py-2">Buscar</button>
+      {q && <a href={closer && !CLOSERS[yo] ? `?closer=${closer}` : "?"} className="text-sm text-slate-400 self-center underline">Limpiar</a>}
+    </form>
+  );
 
   return (
     <div>
@@ -70,17 +80,10 @@ export default async function Reuniones({ searchParams }: { searchParams: Promis
       <Seccion titulo={`Próximas (${proximas.length})`} vacio="No hay reuniones agendadas.">
         {proximas.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} verCloser={!CLOSERS[yo]} />)}
       </Seccion>
-      <Seccion titulo={`Completadas · últimos 30 días (${hechas.length})`} vacio="Todavía no hay reuniones completadas." abierta={false}>
+      <Seccion titulo={`Completadas · últimos 30 días (${hechas.length})`} vacio={q ? `No encontré «${q}».` : "Todavía no hay reuniones completadas."} abierta={!!q} arriba={buscador}>
         {hechas.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} conForm verCloser={!CLOSERS[yo]} />)}
       </Seccion>
-      <Seccion titulo="Anteriores" vacio={q ? `No encontré «${q}».` : "No hay reuniones anteriores."} abierta={!!q}
-        arriba={
-          <form className="flex gap-2 mb-3">
-            {!CLOSERS[yo] && closer && <input type="hidden" name="closer" value={closer} />}
-            <input name="q" defaultValue={q} placeholder="Buscar por nombre o mail" className="bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-sm text-slate-200 w-full max-w-sm" />
-            <button className="bg-brand-600 text-white text-sm rounded-lg px-3 py-2">Buscar</button>
-          </form>
-        }>
+      <Seccion titulo="Anteriores" vacio={q ? `No encontré «${q}».` : "No hay reuniones anteriores."} abierta={!!q} arriba={buscador}>
         {viejas.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} conForm verCloser={!CLOSERS[yo]} />)}
       </Seccion>
     </div>
