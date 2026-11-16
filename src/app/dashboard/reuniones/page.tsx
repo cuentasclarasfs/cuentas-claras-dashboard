@@ -110,7 +110,7 @@ function Tarjeta({ r, diag, conForm, verCloser }: { r: Reunion; diag: { lead: Le
           {r.embudo === "downsell" ? "Downsell" : "Principal"} · {r.evento}
         </span>
         <span className="text-sm text-slate-400">{fecha(r.fecha_reu)}</span>
-        {verCloser && <span className="text-sm text-slate-400">· {CLOSERS[r.closer_mail] ?? r.closer_mail}</span>}
+        {verCloser && <span className="text-sm text-slate-400">· {CLOSERS[r.closer_mail] ?? r.closer_nombre ?? r.closer_mail}</span>}
         {r.status && <span className="text-sm text-emerald-400">· {r.status}</span>}
       </div>
       <p className="text-sm text-slate-400 mt-1">

@@ -52,7 +52,7 @@ export type Reunion = {
   id: string; evento: string; embudo: string; nombre: string; mail: string; telefono: string;
   instagram: string; tipo_negocio: string; antiguedad: string; factura_10m: string; motivo: string;
   decisor: string; utm_source: string | null; closer_mail: string; fecha_agenda: string; fecha_reu: string;
-  cancelada: boolean; canal: string | null; tipo_lead: string | null; status: string | null;
+  cancelada: boolean; closer_nombre: string | null; canal: string | null; tipo_lead: string | null; status: string | null;
   metodo_pago: string | null; monto_24h: string | null; aov: string | null; comentario: string | null;
 };
 
