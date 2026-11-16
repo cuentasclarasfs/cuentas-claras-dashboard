@@ -3,6 +3,7 @@
 import { google } from "googleapis";
 import { sql } from "@/lib/db";
 import { leerHojas, aSerie, fechaCelda } from "@/lib/hojaVentas";
+import { telCorto } from "@/lib/diagnostico";
 
 const SETTING = process.env.SHEET_ID_SETTING!;
 const CUENTA = "act_1851658528631747";
@@ -48,7 +49,7 @@ const limpio = (t: unknown) => String(t ?? "").trim().toLowerCase();
  * Escribe en la fila del día (columna A = fecha), solo en celdas vacías. Si no hay fila para ese día, la agrega al final.
  * Las columnas se buscan por su TÍTULO en la fila 1 (Fran reordena columnas); en fórmulas, «{Título}» = esa celda de esta fila.
  */
-async function escribirDia(pestana: string, dia: string, valores: Record<string, string | number>) {
+async function escribirDia(pestana: string, dia: string, valores: Record<string, string | number>, pisar = false) {
   const s = hojas();
   const v = (await s.spreadsheets.values.get({ spreadsheetId: SETTING, range: `'${pestana}'!A:AZ`, valueRenderOption: "UNFORMATTED_VALUE" })).data.values ?? [];
   const titulos = (v[0] ?? []).map(limpio);
@@ -62,7 +63,7 @@ async function escribirDia(pestana: string, dia: string, valores: Record<string,
   }
   const celda = (t: string) => { const i = idx(t); if (i < 0) throw new Error(`${pestana}: no encuentro la columna «${t}»`); return letra(i) + fila; };
   const data = Object.entries(valores)
-    .filter(([t]) => idx(t) >= 0 && (v[fila - 1]?.[idx(t)] === undefined || v[fila - 1][idx(t)] === ""))
+    .filter(([t]) => idx(t) >= 0 && (pisar || v[fila - 1]?.[idx(t)] === undefined || v[fila - 1][idx(t)] === ""))
     .map(([t, val]) => ({ range: `'${pestana}'!${celda(t)}`, values: [[typeof val === "string" ? val.replace(/\{([^}]+)\}/g, (_, x) => celda(x)) : val]] }));
   if (data.length) await s.spreadsheets.values.batchUpdate({ spreadsheetId: SETTING, requestBody: { valueInputOption: "USER_ENTERED", data } });
   return data.map((d) => d.range);
@@ -92,10 +93,22 @@ async function diagnosticosDia(dia: string) {
   return { directo: n("anuncio-directo"), blog: n("anuncio-plata"), manychat: n("manychat-seguidor") };
 }
 
+/**
+ * Agendas de un día que vinieron de una campaña del diagnóstico: el link lleva la campaña (utm_campaign), o la persona
+ * completó el diagnóstico de esa campaña antes de agendar (mismo mail o teléfono). Lo segundo cubre los links sin marca
+ * (antes del 13-11) o cuando agenda por otro Calendly.
+ */
 async function agendasDiagnostico(dia: string, campana: string) {
-  const r = (await sql`SELECT embudo, count(*)::int n FROM reuniones WHERE fuente='calendly' AND utm_source='diagnostico' AND utm_campaign=${campana}
-    AND (fecha_agenda AT TIME ZONE 'America/Argentina/Buenos_Aires')::date = ${dia}::date GROUP BY 1`) as { embudo: string; n: number }[];
-  return { principal: r.find((x) => x.embudo === "principal")?.n ?? 0, downsell: r.find((x) => x.embudo === "downsell")?.n ?? 0 };
+  const r = await fetch("https://cuentasclarasfs.com/wp-json/cc/v1/leads", { headers: { "x-clave": process.env.CC_CLAVE_EQUIPO ?? "", "User-Agent": "cc-crm" }, cache: "no-store" });
+  const leads: { fecha: string; mail: string; wa: string; origen: string }[] = r.ok ? (await r.json()).leads ?? [] : [];
+  const deCamp = leads.filter((l) => l.origen === campana);
+  const filas = (await sql`SELECT embudo, mail, telefono, utm_campaign, fecha_agenda FROM reuniones WHERE fuente='calendly' AND NOT cancelada
+    AND (fecha_agenda AT TIME ZONE 'America/Argentina/Buenos_Aires')::date = ${dia}::date`) as { embudo: string; mail: string | null; telefono: string | null; utm_campaign: string | null; fecha_agenda: string }[];
+  const vino = (f: (typeof filas)[number]) => f.utm_campaign === campana || (!f.utm_campaign && deCamp.some((l) =>
+    new Date(l.fecha) <= new Date(f.fecha_agenda) &&
+    ((l.mail && l.mail.toLowerCase() === (f.mail ?? "").toLowerCase()) || (telCorto(l.wa) && telCorto(l.wa) === telCorto(f.telefono)))));
+  const ok = filas.filter(vino);
+  return { principal: ok.filter((f) => f.embudo === "principal").length, downsell: ok.filter((f) => f.embudo === "downsell").length };
 }
 
 const ENCABEZADO_DIAG = [
@@ -134,23 +147,23 @@ async function asegurarPestanaDiag() {
 }
 
 /** Carga un día completo (por defecto, ayer). Devuelve qué celdas escribió. */
-export async function cargarDia(dia: string) {
-  if (dia < "2026-11-16") return []; // hasta el domingo 15 carga Fran a mano (pedido del 15-11)
+export async function cargarDia(dia: string, pisar = false) {
+  const aMano = dia < "2026-11-16"; // hasta el domingo 15, VSL / MSG WAPP / FMA los carga Fran a mano (pedido del 15-11)
   const camp = await metaDia(dia);
   const de = (re: RegExp) => camp.filter((c) => re.test(c.nombre));
   const vsl = de(/^VSL/i), fma = de(/^FMA/i), directo = de(/^Diagn[oó]stico/i), blog = de(/^Plata/i), wapp = de(/^MSG-Ventas/i);
   const ag = await agendasVSL(dia);
   const escrito: string[] = [];
 
-  escrito.push(...await escribirDia("VSL", dia, { "Gasto": suma(vsl, "gasto"), "Agendas": ag.principal, "Visitas a la pagina": suma(vsl, "visitas"), "Agendas DS": ag.downsell,
+  if (!aMano) escrito.push(...await escribirDia("VSL", dia, { "Gasto": suma(vsl, "gasto"), "Agendas": ag.principal, "Visitas a la pagina": suma(vsl, "visitas"), "Agendas DS": ag.downsell,
     "Costo c/DS": '=IFERROR({Gasto}/({Agendas}+N({Agendas DS}));"")' }));
-  escrito.push(...await escribirDia("MSG WAPP", dia, { "$": suma(wapp, "gasto"), "Ads Manager": suma(wapp, "mensajes") }));
+  if (!aMano) escrito.push(...await escribirDia("MSG WAPP", dia, { "$": suma(wapp, "gasto"), "Ads Manager": suma(wapp, "mensajes") }));
   // FMA: lo de Meta + lo que avisa ManyChat (etiquetas) + diagnósticos y agendas que vinieron del link de ManyChat.
   const mc = await eventosManychat(dia);
   const agMc = await agendasDiagnostico(dia, "manychat-seguidor");
   const diagMc = (await diagnosticosDia(dia)).manychat;
   await asegurarEncabezado("FMA", { P: "Clic diagnóstico (Many)", Q: "Diagnósticos (Many)", R: "Agendas (Many)", S: "Agendas DS (Many)" });
-  escrito.push(...await escribirDia("FMA", dia, {
+  if (!aMano) escrito.push(...await escribirDia("FMA", dia, {
     "$": suma(fma, "gasto"), "Comentarios": suma(fma, "comentarios"), "Seguidores Ads Man": suma(fma, "seguidores"),
     ...(mc.manychatActivo ? { "Seguidores Many": mc.nuevo_seguidor, "Tienen negocio": mc.tiene_negocio, "Clic diagnóstico (Many)": mc.click_diagnostico } : {}),
     "Diagnósticos (Many)": diagMc, "Agendas (Many)": agMc.principal, "Agendas DS (Many)": agMc.downsell,
@@ -167,7 +180,7 @@ export async function cargarDia(dia: string) {
       [H[6]]: div(`{${H[1]}}`, `{${H[3]}}`), [H[7]]: div(`{${H[1]}}`, `{${H[4]}}`), [H[15]]: div(`{${H[1]}}`, `({${H[4]}}+{${H[5]}})`),
       [H[8]]: suma(blog, "gasto"), [H[9]]: suma(blog, "visitas"), [H[10]]: diag.blog, [H[11]]: aB.principal, [H[12]]: aB.downsell,
       [H[13]]: div(`{${H[8]}}`, `{${H[10]}}`), [H[14]]: div(`{${H[8]}}`, `{${H[11]}}`), [H[16]]: div(`{${H[8]}}`, `({${H[11]}}+{${H[12]}})`),
-    }));
+    }, pisar));
   }
   return escrito;
 }

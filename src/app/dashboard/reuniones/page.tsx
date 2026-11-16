@@ -18,11 +18,11 @@ function whatsapp(tel: string | null) {
 const fecha = (d: string) =>
   new Date(d).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
 
-export default async function Reuniones({ searchParams }: { searchParams: Promise<{ closer?: string }> }) {
+export default async function Reuniones({ searchParams }: { searchParams: Promise<{ closer?: string; q?: string }> }) {
   await syncSiHaceFalta();
   const user = await currentUser();
   const yo = user?.primaryEmailAddress?.emailAddress?.toLowerCase() ?? "";
-  const { closer: elegido } = await searchParams;
+  const { closer: elegido, q = "" } = await searchParams;
   // El closer ve lo suyo; el resto ve todo y puede filtrar por closer.
   const closer = CLOSERS[yo] ? yo : elegido ?? "";
 
@@ -34,6 +34,10 @@ export default async function Reuniones({ searchParams }: { searchParams: Promis
   // Señas grandes que todavía no son clientes: que cada closer las tenga presentes (fecha de reunión sin límite).
   const senas = (await sql`SELECT * FROM reuniones WHERE status='Seña Pie Adentro' AND NOT descartada
       AND (${closer} = '' OR closer_mail = ${closer}) ORDER BY fecha_reu DESC`) as Reunion[];
+  // Anteriores (más de 30 días): por nombre si buscan; si no, las últimas 20, para corregir algo viejo.
+  const viejas = (await sql`SELECT * FROM reuniones WHERE NOT descartada AND (${closer} = '' OR closer_mail = ${closer})
+      AND fecha_reu <= now() - interval '30 days' AND (${q} = '' OR nombre ILIKE ${"%" + q + "%"} OR mail ILIKE ${"%" + q + "%"})
+      ORDER BY fecha_reu DESC LIMIT ${q ? 50 : 20}`) as Reunion[];
   const diag = await leadsDiagnostico();
   const d = (r: Reunion) => ({ lead: diag.buscar(r.mail, r.telefono), sabe: new Date(r.fecha_agenda ?? r.fecha_reu).getTime() >= diag.desde });
   const ahora = Date.now();
@@ -66,19 +70,33 @@ export default async function Reuniones({ searchParams }: { searchParams: Promis
       <Seccion titulo={`Próximas (${proximas.length})`} vacio="No hay reuniones agendadas.">
         {proximas.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} verCloser={!CLOSERS[yo]} />)}
       </Seccion>
-      <Seccion titulo={`Completadas · últimos 30 días (${hechas.length})`} vacio="Todavía no hay reuniones completadas.">
+      <Seccion titulo={`Completadas · últimos 30 días (${hechas.length})`} vacio="Todavía no hay reuniones completadas." abierta={false}>
         {hechas.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} conForm verCloser={!CLOSERS[yo]} />)}
+      </Seccion>
+      <Seccion titulo="Anteriores" vacio={q ? `No encontré «${q}».` : "No hay reuniones anteriores."} abierta={!!q}
+        arriba={
+          <form className="flex gap-2 mb-3">
+            {!CLOSERS[yo] && closer && <input type="hidden" name="closer" value={closer} />}
+            <input name="q" defaultValue={q} placeholder="Buscar por nombre o mail" className="bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-sm text-slate-200 w-full max-w-sm" />
+            <button className="bg-brand-600 text-white text-sm rounded-lg px-3 py-2">Buscar</button>
+          </form>
+        }>
+        {viejas.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} conForm verCloser={!CLOSERS[yo]} />)}
       </Seccion>
     </div>
   );
 }
 
-function Seccion({ titulo, vacio, children }: { titulo: string; vacio: string; children: React.ReactNode[] }) {
+// Cada sección se puede minimizar (tocando el título); el navegador recuerda si estaba abierta mientras no recarguen.
+function Seccion({ titulo, vacio, children, abierta = true, arriba }: { titulo: string; vacio: string; children: React.ReactNode[]; abierta?: boolean; arriba?: React.ReactNode }) {
   return (
-    <section className="mb-10">
-      <h2 className="text-lg font-semibold text-white mb-3">{titulo}</h2>
+    <details open={abierta} className="mb-8 group">
+      <summary className="cursor-pointer list-none text-lg font-semibold text-white mb-3 select-none">
+        <span className="inline-block w-5 text-slate-500 group-open:rotate-90 transition-transform">›</span>{titulo}
+      </summary>
+      {arriba}
       {children.length ? <div className="space-y-3">{children}</div> : <p className="text-sm text-slate-500">{vacio}</p>}
-    </section>
+    </details>
   );
 }
 
