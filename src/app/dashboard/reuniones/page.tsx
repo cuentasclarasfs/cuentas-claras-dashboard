@@ -1,6 +1,8 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { sql, CLOSERS, STATUS, type Reunion } from "@/lib/db";
+import { after } from "next/server";
 import { syncSiHaceFalta } from "@/lib/calendly";
+import { cargaDiariaSiFalta } from "@/lib/cargaDiaria";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { guardarReunion } from "./actions";
 import { leadsDiagnostico, type LeadDiag } from "@/lib/diagnostico";
@@ -20,6 +22,7 @@ const fecha = (d: string) =>
 
 export default async function Reuniones({ searchParams }: { searchParams: Promise<{ closer?: string; q?: string }> }) {
   await syncSiHaceFalta();
+  after(cargaDiariaSiFalta); // por si los relojes fallaron: la carga diaria la dispara también quien abre la pantalla
   const user = await currentUser();
   const yo = user?.primaryEmailAddress?.emailAddress?.toLowerCase() ?? "";
   const { closer: elegido, q = "" } = await searchParams;

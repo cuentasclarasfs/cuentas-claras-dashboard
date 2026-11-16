@@ -137,7 +137,7 @@ async function asegurarPestanaDiag() {
 
 /** Carga un día completo (por defecto, ayer). Devuelve qué celdas escribió. */
 export async function cargarDia(dia: string, pisar = false) {
-  const aMano = dia < "2026-11-16"; // hasta el domingo 15, VSL / MSG WAPP / FMA los carga Fran a mano (pedido del 15-11)
+  const aMano = dia < "2026-11-15"; // hasta el sábado 14, VSL / MSG WAPP / FMA los carga Fran a mano (pedido del 15-11)
   const camp = await metaDia(dia);
   const de = (re: RegExp) => camp.filter((c) => re.test(c.nombre));
   const vsl = de(/^VSL/i), fma = de(/^FMA/i), directo = de(/^Diagn[oó]stico/i), blog = de(/^Plata/i), wapp = de(/^MSG-Ventas/i);
@@ -172,4 +172,21 @@ export async function cargarDia(dia: string, pisar = false) {
     }, pisar));
   }
   return escrito;
+}
+
+/** Carga el día de ayer una sola vez, a partir de las 8:30 de Argentina. La llaman los relojes y las pantallas:
+ *  si GitHub se saltea la hora, carga el primero que llegue después. Atómico, así no corre dos veces a la vez. */
+export async function cargaDiariaSiFalta() {
+  const ar = new Date(Date.now() - 3 * 3600e3);
+  if (ar.getUTCHours() * 60 + ar.getUTCMinutes() < 8 * 60 + 30) return null;
+  const ayer = new Date(ar.getTime() - 864e5).toISOString().slice(0, 10);
+  await sql`INSERT INTO sync_estado VALUES ('diario', '') ON CONFLICT (clave) DO NOTHING`;
+  const toca = await sql`UPDATE sync_estado SET valor=${ayer} WHERE clave='diario' AND valor < ${ayer} RETURNING clave`;
+  if (!toca.length) return null;
+  try {
+    return { dia: ayer, escrito: await cargarDia(ayer) };
+  } catch (e) {
+    await sql`UPDATE sync_estado SET valor='' WHERE clave='diario'`; // que lo reintente el próximo
+    throw e;
+  }
 }
