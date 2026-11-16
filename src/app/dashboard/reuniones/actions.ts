@@ -29,6 +29,7 @@ export async function guardarReunion(form: FormData) {
     status, metodo_pago: String(form.get("metodo_pago") ?? "") || null, monto_24h: num(form.get("monto_24h")),
     aov: num(form.get("aov")), comentario: String(form.get("comentario") ?? "") || null,
   };
+  if (status === "Cliente confirmado" && !datos.aov) throw new Error("Para Cliente confirmado falta el monto del trato (AOV).");
   // Primero el Sheets (manda mientras el equipo lo use): si falla, no se guarda nada y el closer ve el error.
   const [r] = (await sql`SELECT nombre, fecha_reu FROM reuniones WHERE id=${id}`) as { nombre: string; fecha_reu: string }[];
   if (!(await escribirEnHoja({ ...r, ...datos }))) throw new Error("No encontré la fila de esta reunión en el Sheets: avisale a Busta.");

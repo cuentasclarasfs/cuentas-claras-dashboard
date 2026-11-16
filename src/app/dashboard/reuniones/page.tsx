@@ -5,6 +5,7 @@ import { syncSiHaceFalta } from "@/lib/calendly";
 import { cargaDiariaSiFalta } from "@/lib/cargaDiaria";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { guardarReunion } from "./actions";
+import { StatusSelect } from "./StatusSelect";
 import { leadsDiagnostico, type LeadDiag } from "@/lib/diagnostico";
 
 export const dynamic = "force-dynamic";
@@ -140,10 +141,7 @@ function Tarjeta({ r, diag, conForm, verCloser }: { r: Reunion; diag: { lead: Le
       {conForm && (
         <form action={guardarReunion} className="mt-3 grid grid-cols-2 md:grid-cols-6 gap-2">
           <input type="hidden" name="id" value={r.id} />
-          <select name="status" required defaultValue={r.status ?? ""} className={`${input} col-span-2`}>
-            <option value="" disabled>¿Cómo fue?</option>
-            {STATUS.map((s) => <option key={s}>{s}</option>)}
-          </select>
+          <StatusSelect opciones={STATUS} defaultValue={r.status ?? ""} className={`${input} col-span-2`} />
           <input name="metodo_pago" placeholder="Método de pago" defaultValue={r.metodo_pago ?? ""} className={input} />
           <input name="monto_24h" placeholder="$ 24 hs" inputMode="decimal" defaultValue={r.monto_24h ?? ""} className={input} />
           <input name="aov" placeholder="Monto del trato" inputMode="decimal" defaultValue={r.aov ?? ""} className={input} />
