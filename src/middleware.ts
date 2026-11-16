@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import type { Role } from "@/lib/roles";
 import { canAccess, getDefaultSection } from "@/lib/roles";
 
-const isPublicRoute = createRouteMatcher(["/sign-in(.*)", "/api/sync", "/api/diario", "/api/manychat"]);
+const isPublicRoute = createRouteMatcher(["/sign-in(.*)", "/api/sync", "/api/diario", "/api/manychat", "/api/agendados"]);
 
 export default clerkMiddleware(async (auth, req) => {
   if (isPublicRoute(req)) return;
