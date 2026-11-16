@@ -147,6 +147,7 @@ export function canalOrigen(r: { evento: string; utm_source: string | null; utm_
   if (u === "perfil") return ["Link perfil", "Organico"];
   if (u.startsWith("web-")) return ["Organico", "Organico"];
   if (["TB", "FPG", "MZ", "RMK", "V", "V1", "V2"].includes(e)) return ["Publi a VSL", "Publi a VSL"];
+  if (e === "D") return ["Diagnostico Directo", "Organico"]; // Calendly del diagnóstico (desde el 15-11 todos entran por la D)
   if (e === "H") return ["Link perfil", "Organico"];
   if (e === "M") return ["Outbound", "Setting"];
   if (e === "R") return ["Referido", "Referido"];

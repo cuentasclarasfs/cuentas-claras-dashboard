@@ -3,7 +3,6 @@
 import { google } from "googleapis";
 import { sql } from "@/lib/db";
 import { leerHojas, aSerie, fechaCelda } from "@/lib/hojaVentas";
-import { telCorto } from "@/lib/diagnostico";
 
 const SETTING = process.env.SHEET_ID_SETTING!;
 const CUENTA = "act_1851658528631747";
@@ -93,22 +92,12 @@ async function diagnosticosDia(dia: string) {
   return { directo: n("anuncio-directo"), blog: n("anuncio-plata"), manychat: n("manychat-seguidor") };
 }
 
-/**
- * Agendas de un día que vinieron de una campaña del diagnóstico: el link lleva la campaña (utm_campaign), o la persona
- * completó el diagnóstico de esa campaña antes de agendar (mismo mail o teléfono). Lo segundo cubre los links sin marca
- * (antes del 13-11) o cuando agenda por otro Calendly.
- */
+// Agendas de un día que vinieron de una campaña del diagnóstico: solo por el link (utm_campaign).
+// No se cruza por mail: si después lo agenda el setter, esa agenda es de setting (Fran, 15-11).
 async function agendasDiagnostico(dia: string, campana: string) {
-  const r = await fetch("https://cuentasclarasfs.com/wp-json/cc/v1/leads", { headers: { "x-clave": process.env.CC_CLAVE_EQUIPO ?? "", "User-Agent": "cc-crm" }, cache: "no-store" });
-  const leads: { fecha: string; mail: string; wa: string; origen: string }[] = r.ok ? (await r.json()).leads ?? [] : [];
-  const deCamp = leads.filter((l) => l.origen === campana);
-  const filas = (await sql`SELECT embudo, mail, telefono, utm_campaign, fecha_agenda FROM reuniones WHERE fuente='calendly' AND NOT cancelada
-    AND (fecha_agenda AT TIME ZONE 'America/Argentina/Buenos_Aires')::date = ${dia}::date`) as { embudo: string; mail: string | null; telefono: string | null; utm_campaign: string | null; fecha_agenda: string }[];
-  const vino = (f: (typeof filas)[number]) => f.utm_campaign === campana || (!f.utm_campaign && deCamp.some((l) =>
-    new Date(l.fecha) <= new Date(f.fecha_agenda) &&
-    ((l.mail && l.mail.toLowerCase() === (f.mail ?? "").toLowerCase()) || (telCorto(l.wa) && telCorto(l.wa) === telCorto(f.telefono)))));
-  const ok = filas.filter(vino);
-  return { principal: ok.filter((f) => f.embudo === "principal").length, downsell: ok.filter((f) => f.embudo === "downsell").length };
+  const r = (await sql`SELECT embudo, count(*)::int n FROM reuniones WHERE fuente='calendly' AND NOT cancelada AND utm_campaign=${campana}
+    AND (fecha_agenda AT TIME ZONE 'America/Argentina/Buenos_Aires')::date = ${dia}::date GROUP BY 1`) as { embudo: string; n: number }[];
+  return { principal: r.find((x) => x.embudo === "principal")?.n ?? 0, downsell: r.find((x) => x.embudo === "downsell")?.n ?? 0 };
 }
 
 const ENCABEZADO_DIAG = [
