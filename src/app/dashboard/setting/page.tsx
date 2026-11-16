@@ -221,8 +221,12 @@ export default async function SettingPage({
 
   // ── Outbound data (needed early for Análisis de Leads) ───────────────────
 
-  const tienenNegocio     = sumInt(analisisFMA,  "Tienen negocio");
-  const prevTienenNegocio = sumInt(analisisPrev, "Tienen negocio");
+  // Desde el 16/11 el outbound lo hace ManyChat (pestaña FMA); antes lo cargaba el setter en «Analisis FMA».
+  const desdeMany = (r: Record<string, string>) => inDateRange(r["Fecha"] ?? "", "2026-11-16T00:00", "2099-12-31");
+  const manyPer  = fmaRawData.filter((r) => inR(r["Fecha"] ?? "") && desdeMany(r));
+  const manyPrev = fmaRawData.filter((r) => inRPrev(r["Fecha"] ?? "") && desdeMany(r));
+  const tienenNegocio     = sumInt(analisisFMA,  "Tienen negocio") + sumInt(manyPer, "Tienen negocio");
+  const prevTienenNegocio = sumInt(analisisPrev, "Tienen negocio") + sumInt(manyPrev, "Tienen negocio");
 
   // ── ANÁLISIS DE LEADS ─────────────────────────────────────────────────────
 
@@ -427,8 +431,12 @@ export default async function SettingPage({
 
   // ── SECTION OUTBOUND ─────────────────────────────────────────────────────
 
-  const inicios       = sumInt(analisisFMA, "Inicios");
-  const noNegocio     = sumInt(analisisFMA, "No tienen negocio");
+  const inicios       = sumInt(analisisFMA, "Inicios") + sumInt(manyPer, "Seguidores Many");
+  const noNegocio     = sumInt(analisisFMA, "No tienen negocio") + sumInt(manyPer, "No tienen negocio");
+  const clicDiag      = sumInt(manyPer, "Clic diagnóstico (Many)");
+  const diagMany      = sumInt(manyPer, "Diagnósticos (Many)");
+  const agMany        = sumInt(manyPer, "Agendas (Many)");
+  const agDsMany      = sumInt(manyPer, "Agendas DS (Many)");
   const neg1          = sumInt(analisisFMA, "Negocio <1 año");
   const neg13         = sumInt(analisisFMA, "Negocio 1-3 años");
   const neg3plus      = sumInt(analisisFMA, "Negocio >3 años");
@@ -448,7 +456,7 @@ export default async function SettingPage({
     ? costoTipoARows.reduce((s, r) => s + parseFloat(r["CostoTipoA"] || "0"), 0) / costoTipoARows.length
     : null;
 
-  const prevInicios = sumInt(analisisPrev, "Inicios");
+  const prevInicios = sumInt(analisisPrev, "Inicios") + sumInt(manyPrev, "Seguidores Many");
 
   const reunOut     = byCanal("Outbound");
   const cierresOut  = reunOut.filter((r) => isClosedStatus(r["Status"])).length;
@@ -1051,6 +1059,9 @@ export default async function SettingPage({
           {fmaEcoLeads > 0 && fmaAgendasFMA > 0 && (
             <p className="text-[11px] text-brand-400 mt-0.5">{pct(fmaAgendasFMA, fmaEcoLeads)} de leads</p>
           )}
+          {reunDs.some((r) => isFMACanal(r["Canal"] ?? "")) && (
+            <p className="text-[11px] text-slate-400 mt-0.5">+ {reunDs.filter((r) => isFMACanal(r["Canal"] ?? "")).length} downsell</p>
+          )}
           {fmaAgendasFMAPrev > 0 && (
             <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
               ant: {fmaAgendasFMAPrev}
@@ -1213,7 +1224,7 @@ export default async function SettingPage({
             {/* Inicios */}
             <div className="flex items-center justify-between py-2.5 border-b border-surface-700/40">
               <div>
-                <p className="text-sm text-slate-300">Inicios</p>
+                <p className="text-sm text-slate-300">Inicios <span className="text-[10px] text-slate-600">(saludo al nuevo seguidor)</span></p>
                 <p className="text-[10px] text-slate-600">vs período anterior: {prevInicios || "—"}</p>
               </div>
               <p className="text-lg font-bold tabular-nums text-white flex items-center">
@@ -1246,13 +1257,28 @@ export default async function SettingPage({
             </div>
 
             {/* No tienen negocio */}
-            <div className="flex items-center justify-between py-2.5 last:border-0">
+            <div className="flex items-center justify-between py-2.5 border-b border-surface-700/40 last:border-0">
               <div>
                 <p className="text-sm text-slate-400">No tienen negocio</p>
                 <p className="text-[10px] text-slate-600">{pct(noNegocio, inicios)} de inicios</p>
               </div>
               <p className="text-lg font-bold tabular-nums text-slate-500">{noNegocio || "—"}</p>
             </div>
+
+            {/* Embudo ManyChat → diagnóstico (desde el 16/11) */}
+            {manyPer.length > 0 && [
+              { t: "Clic en el diagnóstico", n: clicDiag, sub: `${pct(clicDiag, tienenNegocio)} de los que tienen negocio` },
+              { t: "Completan el diagnóstico", n: diagMany, sub: `${pct(diagMany, clicDiag)} de los que hicieron clic` },
+              { t: "Se agendan", n: agMany + agDsMany, sub: `${agMany} principal + ${agDsMany} downsell · ${pct(agMany + agDsMany, diagMany)} de los que lo completan` },
+            ].map((x) => (
+              <div key={x.t} className="flex items-center justify-between py-2.5 border-b border-surface-700/40 last:border-0">
+                <div>
+                  <p className="text-sm text-slate-300">{x.t}</p>
+                  <p className="text-[10px] text-slate-600">{x.sub}</p>
+                </div>
+                <p className="text-lg font-bold tabular-nums text-brand-400">{x.n || "—"}</p>
+              </div>
+            ))}
           </div>
 
           {/* Tipo A / B o C */}

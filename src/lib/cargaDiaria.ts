@@ -113,7 +113,7 @@ async function eventosManychat(dia: string) {
   // Solo días completos: el primer aviso tiene que ser de antes de ese día (si no, el día de la activación sale a medias).
   const [{ hay }] = (await sql`SELECT coalesce(min((fecha AT TIME ZONE 'America/Argentina/Buenos_Aires')::date) < ${dia}::date, false) hay FROM manychat_eventos`) as { hay: boolean }[];
   const n = (e: string) => r.find((x) => x.etiqueta === e)?.n ?? 0;
-  return { manychatActivo: hay, nuevo_seguidor: n("nuevo_seguidor"), tiene_negocio: n("tiene_negocio"), click_diagnostico: n("click_diagnostico") };
+  return { manychatActivo: hay, nuevo_seguidor: n("nuevo_seguidor"), tiene_negocio: n("tiene_negocio"), click_diagnostico: n("click_diagnostico"), no_tiene_negocio: n("no_tiene_negocio") };
 }
 
 async function asegurarEncabezado(pestana: string, cols: Record<string, string>) {
@@ -151,10 +151,10 @@ export async function cargarDia(dia: string, pisar = false) {
   const mc = await eventosManychat(dia);
   const agMc = await agendasDiagnostico(dia, "manychat-seguidor");
   const diagMc = (await diagnosticosDia(dia)).manychat;
-  await asegurarEncabezado("FMA", { P: "Clic diagnóstico (Many)", Q: "Diagnósticos (Many)", R: "Agendas (Many)", S: "Agendas DS (Many)" });
+  await asegurarEncabezado("FMA", { P: "Clic diagnóstico (Many)", Q: "Diagnósticos (Many)", R: "Agendas (Many)", S: "Agendas DS (Many)", T: "No tienen negocio" });
   if (!aMano) escrito.push(...await escribirDia("FMA", dia, {
     "$": suma(fma, "gasto"), "Comentarios": suma(fma, "comentarios"), "Seguidores Ads Man": suma(fma, "seguidores"),
-    ...(mc.manychatActivo ? { "Seguidores Many": mc.nuevo_seguidor, "Tienen negocio": mc.tiene_negocio, "Clic diagnóstico (Many)": mc.click_diagnostico } : {}),
+    ...(mc.manychatActivo ? { "Seguidores Many": mc.nuevo_seguidor, "Tienen negocio": mc.tiene_negocio, "No tienen negocio": mc.no_tiene_negocio, "Clic diagnóstico (Many)": mc.click_diagnostico } : {}),
     "Diagnósticos (Many)": diagMc, "Agendas (Many)": agMc.principal, "Agendas DS (Many)": agMc.downsell,
   }));
 
