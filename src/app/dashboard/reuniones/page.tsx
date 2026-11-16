@@ -21,12 +21,14 @@ function whatsapp(tel: string | null) {
 const fecha = (d: string) =>
   new Date(d).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
 
-export default async function Reuniones({ searchParams }: { searchParams: Promise<{ closer?: string; q?: string }> }) {
+export default async function Reuniones({ searchParams }: { searchParams: Promise<{ closer?: string; q?: string; st?: string }> }) {
   await syncSiHaceFalta();
   after(cargaDiariaSiFalta); // por si los relojes fallaron: la carga diaria la dispara también quien abre la pantalla
   const user = await currentUser();
   const yo = user?.primaryEmailAddress?.emailAddress?.toLowerCase() ?? "";
-  const { closer: elegido, q = "" } = await searchParams;
+  const { closer: elegido, q = "", st: stPedido = "" } = await searchParams;
+  const st = STATUS.includes(stPedido) ? stPedido : "";
+  const buscando = !!(q || st);
   // El closer ve lo suyo; el resto ve todo y puede filtrar por closer.
   const closer = CLOSERS[yo] ? yo : elegido ?? "";
 
@@ -41,21 +43,26 @@ export default async function Reuniones({ searchParams }: { searchParams: Promis
   // Anteriores (más de 30 días): por nombre si buscan; si no, las últimas 20, para corregir algo viejo.
   const viejas = (await sql`SELECT * FROM reuniones WHERE NOT descartada AND (${closer} = '' OR closer_mail = ${closer})
       AND fecha_reu <= now() - interval '30 days' AND (${q} = '' OR nombre ILIKE ${"%" + q + "%"} OR mail ILIKE ${"%" + q + "%"})
-      ORDER BY fecha_reu DESC LIMIT ${q ? 50 : 20}`) as Reunion[];
+      AND (${st} = '' OR status = ${st})
+      ORDER BY fecha_reu DESC LIMIT ${st ? 300 : q ? 50 : 20}`) as Reunion[];
   const diag = await leadsDiagnostico();
   const d = (r: Reunion) => ({ lead: diag.buscar(r.mail, r.telefono), sabe: new Date(r.fecha_agenda ?? r.fecha_reu).getTime() >= diag.desde });
   const ahora = Date.now();
   const pendientes = rows.filter((r) => !r.cancelada && !r.status && new Date(r.fecha_reu).getTime() < ahora);
   const proximas = rows.filter((r) => !r.cancelada && new Date(r.fecha_reu).getTime() >= ahora);
-  const busca = (r: Reunion) => !q || `${r.nombre} ${r.mail ?? ""}`.toLowerCase().includes(q.toLowerCase());
+  const busca = (r: Reunion) => (!q || `${r.nombre} ${r.mail ?? ""}`.toLowerCase().includes(q.toLowerCase())) && (!st || r.status === st);
   const hechas = rows.filter((r) => r.status && busca(r)).reverse();
-  // Un solo buscador (nombre o mail) para Completadas y Anteriores.
+  // Un solo buscador (nombre o mail, y status: p. ej. todos los «Luchando» para volver a contactarlos) para Completadas y Anteriores.
   const buscador = (
-    <form className="flex gap-2 mb-3">
+    <form className="flex flex-wrap gap-2 mb-3">
       {!CLOSERS[yo] && closer && <input type="hidden" name="closer" value={closer} />}
       <input name="q" defaultValue={q} placeholder="Buscar por nombre o mail" className="bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-sm text-slate-200 w-full max-w-sm" />
+      <select name="st" defaultValue={st} className="bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-sm text-slate-200">
+        <option value="">Todos los status</option>
+        {STATUS.map((x) => <option key={x}>{x}</option>)}
+      </select>
       <button className="bg-brand-600 text-white text-sm rounded-lg px-3 py-2">Buscar</button>
-      {q && <a href={closer && !CLOSERS[yo] ? `?closer=${closer}` : "?"} className="text-sm text-slate-400 self-center underline">Limpiar</a>}
+      {buscando && <a href={closer && !CLOSERS[yo] ? `?closer=${closer}` : "?"} className="text-sm text-slate-400 self-center underline">Limpiar</a>}
     </form>
   );
 
@@ -84,10 +91,10 @@ export default async function Reuniones({ searchParams }: { searchParams: Promis
       <Seccion titulo={`Próximas (${proximas.length})`} vacio="No hay reuniones agendadas.">
         {proximas.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} reagendar verCloser={!CLOSERS[yo]} />)}
       </Seccion>
-      <Seccion titulo={`Completadas · últimos 30 días (${hechas.length})`} vacio={q ? `No encontré «${q}».` : "Todavía no hay reuniones completadas."} abierta={!!q} arriba={buscador}>
+      <Seccion titulo={`Completadas · últimos 30 días (${hechas.length})`} vacio={buscando ? "No encontré ninguna con esa búsqueda." : "Todavía no hay reuniones completadas."} abierta={buscando} arriba={buscador}>
         {hechas.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} conForm verCloser={!CLOSERS[yo]} />)}
       </Seccion>
-      <Seccion titulo="Anteriores" vacio={q ? `No encontré «${q}».` : "No hay reuniones anteriores."} abierta={!!q} arriba={buscador}>
+      <Seccion titulo={`Anteriores${st ? ` (${viejas.length})` : ""}`} vacio={buscando ? "No encontré ninguna con esa búsqueda." : "No hay reuniones anteriores."} abierta={buscando} arriba={buscador}>
         {viejas.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} conForm verCloser={!CLOSERS[yo]} />)}
       </Seccion>
     </div>
