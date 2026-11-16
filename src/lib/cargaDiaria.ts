@@ -135,6 +135,7 @@ async function asegurarPestanaDiag() {
 
 /** Carga un día completo (por defecto, ayer). Devuelve qué celdas escribió. */
 export async function cargarDia(dia: string) {
+  if (dia < "2026-11-16") return []; // hasta el domingo 15 carga Fran a mano (pedido del 15-11)
   const camp = await metaDia(dia);
   const de = (re: RegExp) => camp.filter((c) => re.test(c.nombre));
   const vsl = de(/^VSL/i), fma = de(/^FMA/i), directo = de(/^Diagn[oó]stico/i), blog = de(/^Plata/i), wapp = de(/^MSG-Ventas/i);
