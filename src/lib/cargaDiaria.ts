@@ -108,7 +108,8 @@ const ENCABEZADO_DIAG = [
 async function eventosManychat(dia: string) {
   const r = (await sql`SELECT etiqueta, count(*)::int n FROM manychat_eventos
     WHERE (fecha AT TIME ZONE 'America/Argentina/Buenos_Aires')::date = ${dia}::date GROUP BY 1`) as { etiqueta: string; n: number }[];
-  const [{ hay }] = (await sql`SELECT count(*) > 0 hay FROM manychat_eventos`) as { hay: boolean }[];
+  // Solo días completos: el primer aviso tiene que ser de antes de ese día (si no, el día de la activación sale a medias).
+  const [{ hay }] = (await sql`SELECT coalesce(min((fecha AT TIME ZONE 'America/Argentina/Buenos_Aires')::date) < ${dia}::date, false) hay FROM manychat_eventos`) as { hay: boolean }[];
   const n = (e: string) => r.find((x) => x.etiqueta === e)?.n ?? 0;
   return { manychatActivo: hay, nuevo_seguidor: n("nuevo_seguidor"), tiene_negocio: n("tiene_negocio"), click_diagnostico: n("click_diagnostico") };
 }
