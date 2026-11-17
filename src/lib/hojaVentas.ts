@@ -139,7 +139,7 @@ export function canalOrigen(r: { evento: string; utm_source: string | null; utm_
   // Desde el diagnóstico, utm_campaign dice por dónde entró. El Canal se compara con lo invertido:
   // Blog Diagnostico = solo anuncios pagos al artículo (anuncio-plata…); guías y recursos sin anuncio = Organico.
   if (u === "diagnostico") {
-    if (/^anuncio-/.test(camp) && camp !== "anuncio-directo") return ["Blog Diagnostico", "Organico"];
+    if (/^anuncio-plata/.test(camp)) return ["Blog Diagnostico", "Organico"]; // anuncio-directo y anuncio-estatico = Diagnostico Directo
     if (/^manychat/.test(camp)) return ["Outbound", "Setting"]; // ManyChat a seguidores nuevos = Outbound, como el resto del outbound
     if (/^(guia-|recurso-)|instagram|portada|testimonios/.test(camp)) return ["Organico", "Organico"];
     return ["Diagnostico Directo", "Organico"];

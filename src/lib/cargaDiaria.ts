@@ -89,13 +89,13 @@ async function diagnosticosDia(dia: string) {
   const leads: { fecha: string; origen: string }[] = r.ok ? (await r.json()).leads ?? [] : [];
   const delDia = leads.filter((l) => l.fecha.slice(0, 10) === dia); // la web guarda la fecha en hora de Argentina
   const n = (o: string) => delDia.filter((l) => l.origen === o).length;
-  return { directo: n("anuncio-directo"), blog: n("anuncio-plata"), manychat: n("manychat-seguidor") };
+  return { directo: n("anuncio-directo") + n("anuncio-estatico"), blog: n("anuncio-plata"), manychat: n("manychat-seguidor") };
 }
 
 // Agendas de un día que vinieron de una campaña del diagnóstico: solo por el link (utm_campaign).
 // No se cruza por mail: si después lo agenda el setter, esa agenda es de setting (Fran, 15-11).
-async function agendasDiagnostico(dia: string, campana: string) {
-  const r = (await sql`SELECT embudo, count(*)::int n FROM reuniones WHERE fuente='calendly' AND NOT cancelada AND utm_campaign=${campana}
+async function agendasDiagnostico(dia: string, campanas: string[]) { // la campaña Diagnóstico junta videos (anuncio-directo) y estáticos (anuncio-estatico)
+  const r = (await sql`SELECT embudo, count(*)::int n FROM reuniones WHERE fuente='calendly' AND NOT cancelada AND utm_campaign = ANY(${campanas})
     AND (fecha_agenda AT TIME ZONE 'America/Argentina/Buenos_Aires')::date = ${dia}::date GROUP BY 1`) as { embudo: string; n: number }[];
   return { principal: r.find((x) => x.embudo === "principal")?.n ?? 0, downsell: r.find((x) => x.embudo === "downsell")?.n ?? 0 };
 }
@@ -138,7 +138,7 @@ export async function cargarDia(dia: string, pisar = false) {
   if (!aMano) escrito.push(...await escribirDia("MSG WAPP", dia, { "$": suma(wapp, "gasto"), "Ads Manager": suma(wapp, "mensajes") }));
   // FMA: lo de Meta + lo que avisa ManyChat (etiquetas) + diagnósticos y agendas que vinieron del link de ManyChat.
   const mc = await eventosManychat(dia);
-  const agMc = await agendasDiagnostico(dia, "manychat-seguidor");
+  const agMc = await agendasDiagnostico(dia, ["manychat-seguidor"]);
   const diagMc = (await diagnosticosDia(dia)).manychat;
   if (!aMano) escrito.push(...await escribirDia("FMA", dia, {
     "$": suma(fma, "gasto"), "Comentarios": suma(fma, "comentarios"), "Seguidores Ads Man": suma(fma, "seguidores"),
@@ -153,7 +153,7 @@ export async function cargarDia(dia: string, pisar = false) {
   if (directo.length || blog.length) {
     await asegurarPestanaDiag();
     const diag = await diagnosticosDia(dia);
-    const [aD, aB] = await Promise.all([agendasDiagnostico(dia, "anuncio-directo"), agendasDiagnostico(dia, "anuncio-plata")]);
+    const [aD, aB] = await Promise.all([agendasDiagnostico(dia, ["anuncio-directo", "anuncio-estatico"]), agendasDiagnostico(dia, ["anuncio-plata"])]);
     const div = (a: string, b: string) => `=IFERROR(${a}/${b};"")`;
     const H = ENCABEZADO_DIAG;
     escrito.push(...await escribirDia(PESTANA_DIAG, dia, {
