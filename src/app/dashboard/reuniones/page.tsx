@@ -4,7 +4,7 @@ import { after } from "next/server";
 import { syncSiHaceFalta } from "@/lib/calendly";
 import { cargaDiariaSiFalta } from "@/lib/cargaDiaria";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { guardarReunion, reagendarReunion } from "./actions";
+import { guardarReunion, reagendarReunion, pasarADownsell } from "./actions";
 import { StatusSelect } from "./StatusSelect";
 import { leadsDiagnostico, type LeadDiag } from "@/lib/diagnostico";
 
@@ -166,6 +166,17 @@ function Tarjeta({ r, diag, conForm, reagendar, verCloser }: { r: Reunion; diag:
           <button className="bg-brand-600 hover:bg-brand-500 text-white rounded-lg px-3 py-2 text-sm font-medium">Guardar</button>
           <textarea name="comentario" placeholder="Comentario" defaultValue={r.comentario ?? ""} rows={2} className={`${input} col-span-2 md:col-span-6`} />
         </form>
+      )}
+      {conForm && r.embudo === "principal" && (
+        <details className="mt-2">
+          <summary className="text-sm text-slate-400 cursor-pointer hover:text-slate-200">No le daba para el principal: pasar al downsell</summary>
+          <form action={pasarADownsell} className="mt-2 flex flex-wrap items-center gap-2">
+            <input type="hidden" name="id" value={r.id} />
+            <input name="motivo" required minLength={5} placeholder="¿Por qué lo pasás? (ej.: factura cerca de 10 M, no le da)" className={`${input} flex-1 min-w-64`} />
+            <button className="bg-cc-purple/40 hover:bg-cc-purple/60 text-white rounded-lg px-3 py-2 text-sm font-medium">Pasar al downsell</button>
+          </form>
+          <p className="text-xs text-slate-500 mt-1">Se mueve a la pestaña Downsell del Sheets sin status: después completás ahí cómo salió.</p>
+        </details>
       )}
     </div>
   );

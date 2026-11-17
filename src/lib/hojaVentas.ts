@@ -102,7 +102,7 @@ async function agregarFilas(pestana: string, filas: (string | number)[][]) {
   const col = (await s.spreadsheets.values.get({ spreadsheetId: ID, range: `'${pestana}'!B:B` })).data.values ?? [];
   const desde = col.length + 1;
   await s.spreadsheets.values.update({
-    spreadsheetId: ID, range: `'${pestana}'!A${desde}:P${desde + filas.length - 1}`, valueInputOption: "USER_ENTERED",
+    spreadsheetId: ID, range: `'${pestana}'!A${desde}:${String.fromCharCode(64 + filas[0].length)}${desde + filas.length - 1}`, valueInputOption: "USER_ENTERED",
     requestBody: { values: filas.map((f) => f.map(seguro)) },
   });
 }
@@ -236,6 +236,29 @@ export async function escribirEnHoja(r: { nombre: string; fecha_reu: string; sta
 export async function reagendarEnHoja(r: { nombre: string; fecha_reu: string }, nueva: Date) {
   const celdas = (await filasDe(r)).map((base) => ({ ...base, col: "N", valores: [dma(nueva)] }));
   return celdas.length > 0 && (await escribirCeldas(celdas));
+}
+
+/**
+ * Agenda del principal que no daba para el programa: su fila se mueve de «Resumen Reuniones» a «Downsell»,
+ * con el resultado (T-W) vacío para completarlo ahí y el motivo del pase en el Comentario.
+ */
+export async function moverADownsellEnHoja(r: { nombre: string; fecha_reu: string }, motivo: string) {
+  const base = (await filasDe(r)).find((f) => f.hoja === "Resumen Reuniones");
+  if (!base) return false;
+  const s = hojas();
+  const leer = async () => (await s.spreadsheets.values.get({ spreadsheetId: ID, range: `'Resumen Reuniones'!A${base.fila}:Y${base.fila}` })).data.values?.[0] ?? [];
+  const fila = await leer();
+  if (!parecido(String(fila[1] ?? ""), base.nombre)) return false; // alguien ordenó la pestaña recién: que lo reintente
+  const comentario = [`Pasó del principal: ${motivo}`, String(fila[24] ?? "")].filter(Boolean).join(" · ");
+  const copia = Array.from({ length: 25 }, (_, i) => (i === 24 ? comentario : i >= 19 && i <= 22 ? "" : String(fila[i] ?? "")));
+  await agregarFilas("Downsell", [copia]);
+  // Primero se copia y recién después se borra la original, confirmando que en esa fila siga la misma persona.
+  if (!parecido(String((await leer())[1] ?? ""), base.nombre)) return true;
+  const props = (await s.spreadsheets.get({ spreadsheetId: ID, fields: "sheets.properties" })).data.sheets ?? [];
+  const sheetId = props.find((h) => h.properties?.title === "Resumen Reuniones")?.properties?.sheetId;
+  await s.spreadsheets.batchUpdate({ spreadsheetId: ID, requestBody: { requests: [{ deleteDimension: {
+    range: { sheetId, dimension: "ROWS", startIndex: base.fila - 1, endIndex: base.fila } } }] } });
+  return true;
 }
 
 // La fila de esta reunión en cada pestaña: mismo nombre y la fecha más cercana (±45 días).

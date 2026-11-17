@@ -3,7 +3,7 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { sql, STATUS, CLOSERS } from "@/lib/db";
-import { escribirEnHoja, reagendarEnHoja } from "@/lib/hojaVentas";
+import { escribirEnHoja, reagendarEnHoja, moverADownsellEnHoja } from "@/lib/hojaVentas";
 
 function num(v: FormDataEntryValue | null) {
   const s = String(v ?? "").replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
@@ -51,5 +51,22 @@ export async function reagendarReunion(form: FormData) {
   const [r] = (await sql`SELECT nombre, fecha_reu FROM reuniones WHERE id=${id}`) as { nombre: string; fecha_reu: string }[];
   if (!(await reagendarEnHoja(r, nueva))) throw new Error("No encontré la fila de esta reunión en el Sheets: avisale a Busta.");
   await sql`UPDATE reuniones SET fecha_reu=${nueva.toISOString()}, fecha_manual=true WHERE id=${id}`;
+  revalidatePath("/dashboard/reuniones");
+}
+
+/** Agendó al principal pero no le daba (por ejemplo, factura cerca de 10 M): pasa al embudo del downsell, sin status y con el motivo. */
+export async function pasarADownsell(form: FormData) {
+  const id = String(form.get("id"));
+  const motivo = String(form.get("motivo") ?? "").trim();
+  if (motivo.length < 5) throw new Error("Contá por qué lo pasás al downsell.");
+  await permiso(id);
+  const [r] = (await sql`SELECT nombre, fecha_reu, hoja, comentario FROM reuniones WHERE id=${id} AND embudo='principal'`) as
+    { nombre: string; fecha_reu: string; hoja: string | null; comentario: string | null }[];
+  if (!r) throw new Error("Esta reunión ya está en el downsell.");
+  // Sin fila todavía en el Sheets: la sincronización la agrega sola en la pestaña Downsell.
+  if (r.hoja && !(await moverADownsellEnHoja(r, motivo))) throw new Error("No encontré la fila de esta reunión en el Sheets: avisale a Busta.");
+  const comentario = [`Pasó del principal: ${motivo}`, r.comentario].filter(Boolean).join(" · ");
+  await sql`UPDATE reuniones SET embudo='downsell', hoja=${r.hoja ? "Downsell" : null}, status=NULL, metodo_pago=NULL,
+    monto_24h=NULL, aov=NULL, comentario=${comentario} WHERE id=${id}`;
   revalidatePath("/dashboard/reuniones");
 }
