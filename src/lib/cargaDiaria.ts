@@ -183,8 +183,11 @@ export async function cargarDia(dia: string, pisar = false) {
     escrito.push(...await escribirDia(PESTANA_DIAG, dia, {
       [H[1]]: suma(directo, "gasto"), [H[2]]: suma(directo, "visitas"), [H[3]]: diag.directo, [H[4]]: aD.principal, [H[5]]: aD.downsell,
       [H[6]]: div(`{${H[1]}}`, `{${H[3]}}`), [H[7]]: div(`{${H[1]}}`, `{${H[4]}}`), [H[15]]: div(`{${H[1]}}`, `({${H[4]}}+{${H[5]}})`),
-      [H[8]]: suma(blog, "gasto"), [H[9]]: suma(blog, "visitas"), [H[10]]: diag.blog, [H[11]]: aB.principal, [H[12]]: aB.downsell,
-      [H[13]]: div(`{${H[8]}}`, `{${H[10]}}`), [H[14]]: div(`{${H[8]}}`, `{${H[11]}}`), [H[16]]: div(`{${H[8]}}`, `({${H[11]}}+{${H[12]}})`),
+      // Blog solo los días que Plata gastó (se pausó el 17-11: el 17 es el último día con métricas de Blog).
+      ...(blog.length ? {
+        [H[8]]: suma(blog, "gasto"), [H[9]]: suma(blog, "visitas"), [H[10]]: diag.blog, [H[11]]: aB.principal, [H[12]]: aB.downsell,
+        [H[13]]: div(`{${H[8]}}`, `{${H[10]}}`), [H[14]]: div(`{${H[8]}}`, `{${H[11]}}`), [H[16]]: div(`{${H[8]}}`, `({${H[11]}}+{${H[12]}})`),
+      } : {}),
     }, pisar));
     // Por conjunto (estáticos, carruseles, orgánicos): gasto de Meta + diagnósticos y agendas de su link.
     const gasto = await gastoConjuntosDiag(dia);
