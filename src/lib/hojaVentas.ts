@@ -134,6 +134,14 @@ export const ingresos = (r: { embudo: string; factura_10m: string | null }) => (
 export const antiguedad = (s: string | null) =>
   /m[aá]s de 3/i.test(s ?? "") ? "Mas de 3 años" : /menos de 1/i.test(s ?? "") ? "Menos de 1 año" : /entre 1 y 3/i.test(s ?? "") ? "Entre 1 y 3 años" : "";
 /** Canal (D) y Origen (P) según de dónde vino la agenda: primero el utm del link, después el evento de Calendly (historial desde ago-26). */
+/** Columna «AD de origen» para lo que llega por un anuncio del diagnóstico: de qué conjunto vino (Fran, 17-11). */
+const AD_DIAG: Record<string, string> = { "anuncio-directo": "Diag Video", "anuncio-estatico": "Diag Estatico", "anuncio-carrusel": "Diag Carrusel", "anuncio-organico": "Diag Organico" };
+export function adOrigen(r: { utm_source: string | null; utm_campaign?: string | null }): string {
+  const camp = r.utm_campaign ?? "";
+  if (r.utm_source !== "diagnostico") return "";
+  return /^anuncio-plata/.test(camp) ? "Diag Blog" : AD_DIAG[camp] ?? "";
+}
+
 export function canalOrigen(r: { evento: string; utm_source: string | null; utm_campaign?: string | null; embudo: string }): [string, string] {
   const u = r.utm_source ?? "", e = r.evento ?? "", camp = r.utm_campaign ?? "";
   // Desde el diagnóstico, utm_campaign dice por dónde entró. El Canal se compara con lo invertido:
@@ -217,7 +225,7 @@ export async function sincronizarHoja(desde: Date) {
   for (const pestana of PESTANAS) {
     const lote = faltan.filter((r) => (r.embudo === "downsell") === (pestana === "Downsell"));
     if (!lote.length) continue;
-    await agregarFilas(pestana, lote.map((r) => { const [canal, origen] = canalOrigen(r); return ["", r.nombre ?? "", r.mail ?? "", canal, "", "", "", r.tipo_negocio ?? "", ingresos(r), "",
+    await agregarFilas(pestana, lote.map((r) => { const [canal, origen] = canalOrigen(r); return ["", r.nombre ?? "", r.mail ?? "", canal, adOrigen(r), "", "", r.tipo_negocio ?? "", ingresos(r), "",
       antiguedad(r.antiguedad), "", r.fecha_agenda ? dma(new Date(r.fecha_agenda)) : "", dma(new Date(r.fecha_reu)), CLOSERS[r.closer_mail] ?? "", origen]; }));
     for (const r of lote) await sql`UPDATE reuniones SET hoja=${pestana} WHERE id=${r.id}`;
     agregadas += lote.length;
