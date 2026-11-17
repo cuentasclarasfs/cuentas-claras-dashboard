@@ -89,7 +89,7 @@ async function diagnosticosDia(dia: string) {
   const leads: { fecha: string; origen: string }[] = r.ok ? (await r.json()).leads ?? [] : [];
   const delDia = leads.filter((l) => l.fecha.slice(0, 10) === dia); // la web guarda la fecha en hora de Argentina
   const n = (o: string) => delDia.filter((l) => l.origen === o).length;
-  return { directo: n("anuncio-directo") + n("anuncio-estatico"), blog: n("anuncio-plata"), manychat: n("manychat-seguidor") };
+  return { de: n, directo: ORIGENES_DIRECTO.reduce((s, o) => s + n(o), 0), blog: n("anuncio-plata"), manychat: n("manychat-seguidor") };
 }
 
 // Agendas de un día que vinieron de una campaña del diagnóstico: solo por el link (utm_campaign).
@@ -100,10 +100,28 @@ async function agendasDiagnostico(dia: string, campanas: string[]) { // la campa
   return { principal: r.find((x) => x.embudo === "principal")?.n ?? 0, downsell: r.find((x) => x.embudo === "downsell")?.n ?? 0 };
 }
 
+// Conjuntos de la campaña Diagnóstico con link propio (?o=), para ver cuánto trae cada uno (Fran, 17-11):
+// [título de las columnas, origen del link, comienzo del nombre del conjunto en Meta]
+const CONJUNTOS_DIAG: [string, string, string][] = [
+  ["Estáticos", "anuncio-estatico", "Estáticos"], ["Carruseles", "anuncio-carrusel", "Carruseles · videos"], ["Orgánicos", "anuncio-organico", "Carruseles orgánicos"]];
+const ORIGENES_DIRECTO = ["anuncio-directo", ...CONJUNTOS_DIAG.map((c) => c[1])]; // todo lo de la campaña Diagnóstico
+
+/** Gasto de cada conjunto de la campaña Diagnóstico ese día. */
+async function gastoConjuntosDiag(dia: string) {
+  const u = new URL(`https://graph.facebook.com/v23.0/${CUENTA}/insights`);
+  u.search = new URLSearchParams({ access_token: process.env.META_TOKEN ?? "", level: "adset", limit: "200",
+    time_range: JSON.stringify({ since: dia, until: dia }), fields: "campaign_name,adset_name,spend" }).toString();
+  const d = await (await fetch(u, { cache: "no-store" })).json();
+  if (d.error) throw new Error("Meta: " + d.error.message);
+  const filas = (d.data ?? []).filter((c: any) => /^Diagn[oó]stico/i.test(c.campaign_name));
+  return (prefijo: string) => Math.round(filas.filter((c: any) => c.adset_name.startsWith(prefijo)).reduce((s: number, c: any) => s + Number(c.spend ?? 0), 0) * 100) / 100;
+}
+
 const ENCABEZADO_DIAG = [
   "Fecha", "$ Directo", "Visitas Directo", "Diagnósticos Directo", "Agendas Directo", "Agendas DS Directo", "$ / Diagnóstico Directo", "$ / Agenda Directo",
   "$ Blog", "Visitas Blog", "Diagnósticos Blog", "Agendas Blog", "Agendas DS Blog", "$ / Diagnóstico Blog", "$ / Agenda Blog",
   "$ / Agenda total Directo (con DS)", "$ / Agenda total Blog (con DS)",
+  ...CONJUNTOS_DIAG.flatMap(([k]) => [`$ ${k}`, `Diagnósticos ${k}`, `Agendas ${k}`, `Agendas DS ${k}`, `$ / Agenda ${k}`]),
 ];
 
 /** Etiquetas que avisó ManyChat ese día (ver /api/manychat). manychatActivo = ya llegó algún aviso alguna vez. */
@@ -119,7 +137,13 @@ async function eventosManychat(dia: string) {
 async function asegurarPestanaDiag() {
   const s = hojas();
   const meta = await s.spreadsheets.get({ spreadsheetId: SETTING, fields: "sheets.properties.title" });
-  if (meta.data.sheets!.some((x) => x.properties!.title === PESTANA_DIAG)) return;
+  if (meta.data.sheets!.some((x) => x.properties!.title === PESTANA_DIAG)) {
+    // Columnas nuevas (los conjuntos): se agregan al final, sin mover las que ya están.
+    const fila = (await s.spreadsheets.values.get({ spreadsheetId: SETTING, range: `'${PESTANA_DIAG}'!1:1` })).data.values?.[0] ?? [];
+    const faltan = ENCABEZADO_DIAG.filter((t) => !fila.map(limpio).includes(limpio(t)));
+    if (faltan.length) await s.spreadsheets.values.update({ spreadsheetId: SETTING, range: `'${PESTANA_DIAG}'!${letra(fila.length)}1`, valueInputOption: "RAW", requestBody: { values: [faltan] } });
+    return;
+  }
   await s.spreadsheets.batchUpdate({ spreadsheetId: SETTING, requestBody: { requests: [{ addSheet: { properties: { title: PESTANA_DIAG, gridProperties: { frozenRowCount: 1 } } } }] } });
   await s.spreadsheets.values.update({ spreadsheetId: SETTING, range: `'${PESTANA_DIAG}'!A1`, valueInputOption: "RAW", requestBody: { values: [ENCABEZADO_DIAG] } });
 }
@@ -153,7 +177,7 @@ export async function cargarDia(dia: string, pisar = false) {
   if (directo.length || blog.length) {
     await asegurarPestanaDiag();
     const diag = await diagnosticosDia(dia);
-    const [aD, aB] = await Promise.all([agendasDiagnostico(dia, ["anuncio-directo", "anuncio-estatico"]), agendasDiagnostico(dia, ["anuncio-plata"])]);
+    const [aD, aB] = await Promise.all([agendasDiagnostico(dia, ORIGENES_DIRECTO), agendasDiagnostico(dia, ["anuncio-plata"])]);
     const div = (a: string, b: string) => `=IFERROR(${a}/${b};"")`;
     const H = ENCABEZADO_DIAG;
     escrito.push(...await escribirDia(PESTANA_DIAG, dia, {
@@ -162,6 +186,15 @@ export async function cargarDia(dia: string, pisar = false) {
       [H[8]]: suma(blog, "gasto"), [H[9]]: suma(blog, "visitas"), [H[10]]: diag.blog, [H[11]]: aB.principal, [H[12]]: aB.downsell,
       [H[13]]: div(`{${H[8]}}`, `{${H[10]}}`), [H[14]]: div(`{${H[8]}}`, `{${H[11]}}`), [H[16]]: div(`{${H[8]}}`, `({${H[11]}}+{${H[12]}})`),
     }, pisar));
+    // Por conjunto (estáticos, carruseles, orgánicos): gasto de Meta + diagnósticos y agendas de su link.
+    const gasto = await gastoConjuntosDiag(dia);
+    for (const [k, origen, prefijo] of CONJUNTOS_DIAG) {
+      const ag = await agendasDiagnostico(dia, [origen]);
+      escrito.push(...await escribirDia(PESTANA_DIAG, dia, {
+        [`$ ${k}`]: gasto(prefijo), [`Diagnósticos ${k}`]: diag.de(origen), [`Agendas ${k}`]: ag.principal, [`Agendas DS ${k}`]: ag.downsell,
+        [`$ / Agenda ${k}`]: div(`{$ ${k}}`, `{Agendas ${k}}`),
+      }, pisar));
+    }
   }
   return escrito;
 }
