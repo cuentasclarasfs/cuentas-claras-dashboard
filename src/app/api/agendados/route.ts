@@ -14,7 +14,7 @@ export function OPTIONS() {
 export async function GET(req: Request) {
   const clave = req.headers.get("x-clave") ?? "";
   if (!process.env.CC_CLAVE_EQUIPO || clave !== process.env.CC_CLAVE_EQUIPO) return Response.json({ ok: false }, { status: 401, headers: CORS });
-  const r = await fetch("https://cuentasclarasfs.com/wp-json/cc/v1/leads", { headers: { "x-clave": clave, "User-Agent": "cc-crm" }, cache: "no-store" });
+  const r = await fetch(`https://cuentasclarasfs.com/wp-json/cc/v1/leads?t=${Date.now()}` /* LiteSpeed cachea la URL sin parámetro */, { headers: { "x-clave": clave, "User-Agent": "cc-crm" }, cache: "no-store" });
   const leads: LeadDiag[] = r.ok ? (await r.json()).leads ?? [] : [];
   if (!leads.length) return Response.json({ ok: true, ids: [] }, { headers: CORS });
   const desde = new Date(Math.min(...leads.map((l) => new Date(l.fecha).getTime())) - 7 * 864e5).toISOString();

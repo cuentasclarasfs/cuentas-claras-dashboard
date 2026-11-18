@@ -14,7 +14,7 @@ export const telCorto = (t: string | null) => {
 export async function leadsDiagnostico() {
   try {
     // shortcut: la web devuelve los últimos 500 leads; alcanza para las reuniones de estas semanas, no para el histórico.
-    const r = await fetch("https://cuentasclarasfs.com/wp-json/cc/v1/leads", {
+    const r = await fetch(`https://cuentasclarasfs.com/wp-json/cc/v1/leads?t=${Date.now()}` /* LiteSpeed cachea la URL sin parámetro */, {
       headers: { "x-clave": process.env.CC_CLAVE_EQUIPO ?? "", "User-Agent": "cc-crm" },
       next: { revalidate: 300 },
     });

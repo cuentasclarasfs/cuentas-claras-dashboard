@@ -83,7 +83,7 @@ export async function agendasVSL(dia: string) {
 
 /** Diagnósticos completados por campaña ese día (leads de la web, campo «origen»). */
 async function diagnosticosDia(dia: string) {
-  const r = await fetch("https://cuentasclarasfs.com/wp-json/cc/v1/leads", {
+  const r = await fetch(`https://cuentasclarasfs.com/wp-json/cc/v1/leads?t=${Date.now()}` /* LiteSpeed cachea la URL sin parámetro */, {
     headers: { "x-clave": process.env.CC_CLAVE_EQUIPO ?? "", "User-Agent": "cc-crm" }, cache: "no-store",
   });
   const leads: { fecha: string; origen: string }[] = r.ok ? (await r.json()).leads ?? [] : [];
