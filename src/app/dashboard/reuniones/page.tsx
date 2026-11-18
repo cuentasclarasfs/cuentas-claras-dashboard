@@ -49,7 +49,8 @@ export default async function Reuniones({ searchParams }: { searchParams: Promis
   const d = (r: Reunion) => ({ lead: diag.buscar(r.mail, r.telefono), sabe: new Date(r.fecha_agenda ?? r.fecha_reu).getTime() >= diag.desde });
   const ahora = Date.now();
   const pendientes = rows.filter((r) => !r.cancelada && !r.status && new Date(r.fecha_reu).getTime() < ahora);
-  const proximas = rows.filter((r) => !r.cancelada && new Date(r.fecha_reu).getTime() >= ahora);
+  // El closer a veces llama antes y ya lo clasifica (p. ej. No presentado): con status pasa a Completadas.
+  const proximas = rows.filter((r) => !r.cancelada && !r.status && new Date(r.fecha_reu).getTime() >= ahora);
   const busca = (r: Reunion) => (!q || `${r.nombre} ${r.mail ?? ""}`.toLowerCase().includes(q.toLowerCase())) && (!st || r.status === st);
   const hechas = rows.filter((r) => r.status && busca(r)).reverse();
   // Un solo buscador (nombre o mail, y status: p. ej. todos los «Luchando» para volver a contactarlos) para Completadas y Anteriores.
@@ -89,7 +90,7 @@ export default async function Reuniones({ searchParams }: { searchParams: Promis
         {pendientes.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} conForm reagendar verCloser={!CLOSERS[yo]} />)}
       </Seccion>
       <Seccion titulo={`Próximas (${proximas.length})`} vacio="No hay reuniones agendadas.">
-        {proximas.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} reagendar verCloser={!CLOSERS[yo]} />)}
+        {proximas.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} conForm reagendar verCloser={!CLOSERS[yo]} />)}
       </Seccion>
       <Seccion titulo={`Completadas · últimos 30 días (${hechas.length})`} vacio={buscando ? "No encontré ninguna con esa búsqueda." : "Todavía no hay reuniones completadas."} abierta={buscando} arriba={buscador}>
         {hechas.map((r) => <Tarjeta key={r.id} r={r} diag={d(r)} conForm verCloser={!CLOSERS[yo]} />)}
