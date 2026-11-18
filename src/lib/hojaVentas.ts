@@ -145,7 +145,7 @@ export const antiguedad = (s: string | null) =>
   /m[aá]s de 3/i.test(s ?? "") ? "Mas de 3 años" : /menos de 1/i.test(s ?? "") ? "Menos de 1 año" : /entre 1 y 3/i.test(s ?? "") ? "Entre 1 y 3 años" : "";
 /** Canal (D) y Origen (P) según de dónde vino la agenda: primero el utm del link, después el evento de Calendly (historial desde ago-26). */
 /** Columna «AD de origen» para lo que llega por un anuncio del diagnóstico: de qué conjunto vino (Fran, 17-11). */
-const AD_DIAG: Record<string, string> = { "anuncio-directo": "Diag Video", "anuncio-estatico": "Diag Estatico", "anuncio-carrusel": "Diag Carrusel", "anuncio-organico": "Diag Organico" };
+const AD_DIAG: Record<string, string> = { "anuncio-directo": "Diag Video", "anuncio-estatico": "Diag Estatico", "anuncio-carrusel": "Diag Carrusel", "anuncio-organico": "Diag Organico", "anuncio-historico": "Diag Historico" };
 export function adOrigen(r: { utm_source: string | null; utm_campaign?: string | null }): string {
   const camp = r.utm_campaign ?? "";
   if (r.utm_source !== "diagnostico") return "";

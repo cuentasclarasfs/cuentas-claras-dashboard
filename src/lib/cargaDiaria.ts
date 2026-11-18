@@ -103,7 +103,7 @@ async function agendasDiagnostico(dia: string, campanas: string[]) { // la campa
 // Conjuntos de la campaña Diagnóstico con link propio (?o=), para ver cuánto trae cada uno (Fran, 17-11):
 // [título de las columnas, origen del link, comienzo del nombre del conjunto en Meta]
 const CONJUNTOS_DIAG: [string, string, string][] = [
-  ["Estáticos", "anuncio-estatico", "Estáticos"], ["Carruseles", "anuncio-carrusel", "Carruseles · videos"], ["Orgánicos", "anuncio-organico", "Carruseles orgánicos"]];
+  ["Históricos", "anuncio-historico", "Históricos FMA"], ["Estáticos", "anuncio-estatico", "Estáticos"], ["Carruseles", "anuncio-carrusel", "Carruseles · videos"], ["Orgánicos", "anuncio-organico", "Carruseles orgánicos"]];
 const ORIGENES_DIRECTO = ["anuncio-directo", ...CONJUNTOS_DIAG.map((c) => c[1])]; // todo lo de la campaña Diagnóstico
 
 /** Gasto de cada conjunto de la campaña Diagnóstico ese día. */
