@@ -197,7 +197,15 @@ export async function sincronizarHoja(desde: Date) {
       const d0 = f.datos;
       if (!f.repetidaDe && r.fuente === "calendly" && new Date(r.fecha_reu) >= AUTO_DESDE) {
         // Reagendó en Calendly: se corrige la fecha en su fila. Canceló (sin reagendar): status «Cancelado».
-        if (!r.cancelada && aSerie(new Date(r.fecha_reu)) !== aSerie(f.reu)) celdas.push({ hoja: f.hoja, fila: f.fila, nombre: f.nombre, reu: f.reu, col: "N", valores: [dma(new Date(r.fecha_reu))] });
+        // Si alguien cambió la fecha en el Sheets (distinta de la última que vimos), manda el Sheets: no se la devuelve a la de Calendly.
+        const hoja = aSerie(f.reu), plat = aSerie(new Date(r.fecha_reu));
+        if (!r.cancelada && r.fecha_hoja != null && hoja !== r.fecha_hoja) {
+          const nueva = new Date(new Date(r.fecha_reu).getTime() + (hoja - plat) * DIA); // mismo horario, el día del Sheets
+          await sql`UPDATE reuniones SET fecha_reu=${nueva.toISOString()}, fecha_manual=true, fecha_hoja=${hoja} WHERE id=${id}`;
+        } else if (!r.cancelada && plat !== hoja) {
+          celdas.push({ hoja: f.hoja, fila: f.fila, nombre: f.nombre, reu: f.reu, col: "N", valores: [dma(new Date(r.fecha_reu))] });
+          await sql`UPDATE reuniones SET fecha_hoja=${plat} WHERE id=${id}`;
+        } else if (r.fecha_hoja !== hoja) await sql`UPDATE reuniones SET fecha_hoja=${hoja} WHERE id=${id}`;
         if (r.cancelada && !d0.status) { celdas.push({ hoja: f.hoja, fila: f.fila, nombre: f.nombre, reu: f.reu, col: "T", valores: ["Cancelado"] }); d0.status = "Cancelado"; }
       }
       // Campo vacío en el Sheets no borra lo cargado en la plataforma.

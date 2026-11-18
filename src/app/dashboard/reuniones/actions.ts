@@ -3,7 +3,7 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { sql, STATUS, CLOSERS } from "@/lib/db";
-import { escribirEnHoja, reagendarEnHoja, moverADownsellEnHoja } from "@/lib/hojaVentas";
+import { escribirEnHoja, reagendarEnHoja, moverADownsellEnHoja, aSerie } from "@/lib/hojaVentas";
 
 function num(v: FormDataEntryValue | null) {
   const s = String(v ?? "").replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
@@ -50,7 +50,7 @@ export async function reagendarReunion(form: FormData) {
   await permiso(id);
   const [r] = (await sql`SELECT nombre, fecha_reu FROM reuniones WHERE id=${id}`) as { nombre: string; fecha_reu: string }[];
   if (!(await reagendarEnHoja(r, nueva))) throw new Error("No encontré la fila de esta reunión en el Sheets: avisale a Busta.");
-  await sql`UPDATE reuniones SET fecha_reu=${nueva.toISOString()}, fecha_manual=true WHERE id=${id}`;
+  await sql`UPDATE reuniones SET fecha_reu=${nueva.toISOString()}, fecha_manual=true, fecha_hoja=${aSerie(nueva)} WHERE id=${id}`;
   revalidatePath("/dashboard/reuniones");
 }
 
