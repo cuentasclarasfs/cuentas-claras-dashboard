@@ -105,24 +105,16 @@ async function agregarFilas(pestana: string, filas: (string | number)[][]) {
     spreadsheetId: ID, range: `'${pestana}'!A${desde}:${String.fromCharCode(64 + filas[0].length)}${desde + filas.length - 1}`, valueInputOption: "USER_ENTERED",
     requestBody: { values: filas.map((f) => f.map(seguro)) },
   });
-  await ordenarPorAgenda(pestana);
+  await ordenarPorReunion(pestana);
 }
 
-/**
- * Ordena por Fecha de la agenda (M) y después por Fecha de reunión (N), como pidió Fran (18-11).
- * Solo el último mes: el histórico nunca estuvo ordenado y tiene filas sin fecha que se irían al fondo.
- * Las filas se mueven con sus colores; las escrituras igual confirman nombre + fecha antes de tocar una fila.
- */
-export async function ordenarPorAgenda(pestana: string) {
+/** Ordena toda la pestaña por Fecha de reunión (N), como la ordenó Fran (18-11); las filas se mueven con sus colores. */
+export async function ordenarPorReunion(pestana: string) {
   const s = hojas();
-  const m = (await s.spreadsheets.values.get({ spreadsheetId: ID, range: `'${pestana}'!M:M`, valueRenderOption: "UNFORMATTED_VALUE" })).data.values ?? [];
-  const desde = aSerie(new Date(Date.now() - 30 * DIA));
-  const inicio = m.findIndex((f, i) => i > 0 && typeof f[0] === "number" && f[0] >= desde); // primera fila (base 0) del último mes
-  if (inicio < 1) return;
   const sheetId = (await s.spreadsheets.get({ spreadsheetId: ID, fields: "sheets.properties" })).data.sheets?.find((h) => h.properties?.title === pestana)?.properties?.sheetId;
+  const filas = ((await s.spreadsheets.values.get({ spreadsheetId: ID, range: `'${pestana}'!B:B` })).data.values ?? []).length;
   await s.spreadsheets.batchUpdate({ spreadsheetId: ID, requestBody: { requests: [{ sortRange: {
-    range: { sheetId, startRowIndex: inicio, endRowIndex: m.length },
-    sortSpecs: [{ dimensionIndex: 12, sortOrder: "ASCENDING" }, { dimensionIndex: 13, sortOrder: "ASCENDING" }] } }] } });
+    range: { sheetId, startRowIndex: 1, endRowIndex: filas }, sortSpecs: [{ dimensionIndex: 13, sortOrder: "ASCENDING" }] } }] } });
 }
 
 // Valores que acepta cada desplegable del Sheets (Fran, 15-11). Lo que no se sabe queda vacío, nunca un valor fuera de la lista.
