@@ -34,7 +34,7 @@ export async function guardarReunion(form: FormData) {
   };
   if (status === "Cliente confirmado" && !datos.aov) throw new Error("Para Cliente confirmado falta el monto del trato (AOV).");
   // Primero el Sheets (manda mientras el equipo lo use): si falla, no se guarda nada y el closer ve el error.
-  const [r] = (await sql`SELECT nombre, fecha_reu FROM reuniones WHERE id=${id}`) as { nombre: string; fecha_reu: string }[];
+  const [r] = (await sql`SELECT nombre, fecha_reu, mail FROM reuniones WHERE id=${id}`) as { nombre: string; fecha_reu: string; mail: string | null }[];
   if (!(await escribirEnHoja({ ...r, ...datos }))) throw new Error("No encontré la fila de esta reunión en el Sheets: avisale a Busta.");
   await sql`UPDATE reuniones SET status=${datos.status}, metodo_pago=${datos.metodo_pago}, monto_24h=${datos.monto_24h},
       aov=${datos.aov}, comentario=${datos.comentario}, completado_por=${mail}, completado_en=now()
@@ -48,7 +48,7 @@ export async function reagendarReunion(form: FormData) {
   const nueva = new Date(`${form.get("fecha")}:00-03:00`); // lo que elige el closer es hora de Argentina
   if (isNaN(nueva.getTime())) throw new Error("Fecha inválida");
   await permiso(id);
-  const [r] = (await sql`SELECT nombre, fecha_reu FROM reuniones WHERE id=${id}`) as { nombre: string; fecha_reu: string }[];
+  const [r] = (await sql`SELECT nombre, fecha_reu, mail FROM reuniones WHERE id=${id}`) as { nombre: string; fecha_reu: string; mail: string | null }[];
   if (!(await reagendarEnHoja(r, nueva))) throw new Error("No encontré la fila de esta reunión en el Sheets: avisale a Busta.");
   await sql`UPDATE reuniones SET fecha_reu=${nueva.toISOString()}, fecha_manual=true, fecha_hoja=${aSerie(nueva)} WHERE id=${id}`;
   revalidatePath("/dashboard/reuniones");
@@ -60,8 +60,8 @@ export async function pasarADownsell(form: FormData) {
   const motivo = String(form.get("motivo") ?? "").trim();
   if (motivo.length < 5) throw new Error("Contá por qué lo pasás al downsell.");
   await permiso(id);
-  const [r] = (await sql`SELECT nombre, fecha_reu, hoja, comentario FROM reuniones WHERE id=${id} AND embudo='principal'`) as
-    { nombre: string; fecha_reu: string; hoja: string | null; comentario: string | null }[];
+  const [r] = (await sql`SELECT nombre, fecha_reu, mail, hoja, comentario FROM reuniones WHERE id=${id} AND embudo='principal'`) as
+    { nombre: string; fecha_reu: string; mail: string | null; hoja: string | null; comentario: string | null }[];
   if (!r) throw new Error("Esta reunión ya está en el downsell.");
   // Sin fila todavía en el Sheets: la sincronización la agrega sola en la pestaña Downsell.
   if (r.hoja && !(await moverADownsellEnHoja(r, motivo))) throw new Error("No encontré la fila de esta reunión en el Sheets: avisale a Busta.");

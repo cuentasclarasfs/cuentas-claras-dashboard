@@ -330,11 +330,15 @@ export async function moverADownsellEnHoja(r: { nombre: string; fecha_reu: strin
 }
 
 // La fila de esta reunión en cada pestaña: mismo nombre y la fecha más cercana (±45 días).
-async function filasDe(r: { nombre: string; fecha_reu: string }) {
+// Por nombre o mail. Si no hay a ±45 días, la más cercana a ±120 días que todavía no tenga status
+// (una con status es otra reunión ya cerrada de la misma persona y no se pisa).
+async function filasDe(r: { nombre: string; fecha_reu: string; mail?: string | null }) {
   const filas = await leerHojas(), t = new Date(r.fecha_reu).getTime();
+  const lejos = (x: FilaHoja) => Math.abs(x.reu.getTime() - t);
   return PESTANAS.flatMap((pestana) => {
-    const f = filas.filter((x) => x.hoja === pestana && Math.abs(x.reu.getTime() - t) < 45 * DIA && parecido(x.nombre, r.nombre))
-      .sort((a, b) => Math.abs(a.reu.getTime() - t) - Math.abs(b.reu.getTime() - t))[0];
+    const suyas = filas.filter((x) => x.hoja === pestana && lejos(x) < 120 * DIA &&
+      (parecido(x.nombre, r.nombre) || (!!r.mail && mailDe(x.c[2]) === mailDe(r.mail)))).sort((a, b) => lejos(a) - lejos(b));
+    const f = suyas.find((x) => lejos(x) < 45 * DIA) ?? suyas.find((x) => !x.datos.status);
     return f ? [{ hoja: pestana, fila: f.fila, nombre: f.nombre, reu: f.reu }] : [];
   });
 }
