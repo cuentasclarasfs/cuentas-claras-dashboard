@@ -149,7 +149,7 @@ const AD_DIAG: Record<string, string> = { "anuncio-directo": "Diag Video", "anun
 export function adOrigen(r: { utm_source: string | null; utm_campaign?: string | null }): string {
   const camp = r.utm_campaign ?? "";
   if (r.utm_source !== "diagnostico") return "";
-  return /^anuncio-plata/.test(camp) ? "Diag Blog" : AD_DIAG[camp] ?? "";
+  return /^anuncio-plata/.test(camp) ? "Diag Blog" : AD_DIAG[camp.replace(/-cal$/, "")] ?? ""; // -cal = campaña calificado
 }
 
 export function canalOrigen(r: { evento: string; utm_source: string | null; utm_campaign?: string | null; embudo: string }): [string, string] {

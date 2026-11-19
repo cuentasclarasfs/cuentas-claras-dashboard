@@ -88,14 +88,15 @@ async function diagnosticosDia(dia: string) {
   });
   const leads: { fecha: string; origen: string }[] = r.ok ? (await r.json()).leads ?? [] : [];
   const delDia = leads.filter((l) => l.fecha.slice(0, 10) === dia); // la web guarda la fecha en hora de Argentina
-  const n = (o: string) => delDia.filter((l) => l.origen === o).length;
+  // «-cal» = el mismo conjunto en la campaña «Diagnóstico · calificado» (19-11): se suma a su conjunto.
+  const n = (o: string) => delDia.filter((l) => l.origen === o || l.origen === o + "-cal").length;
   return { de: n, directo: ORIGENES_DIRECTO.reduce((s, o) => s + n(o), 0), blog: n("anuncio-plata"), manychat: n("manychat-seguidor") };
 }
 
 // Agendas de un día que vinieron de una campaña del diagnóstico: solo por el link (utm_campaign).
 // No se cruza por mail: si después lo agenda el setter, esa agenda es de setting (Fran, 15-11).
 async function agendasDiagnostico(dia: string, campanas: string[]) { // la campaña Diagnóstico junta videos (anuncio-directo) y estáticos (anuncio-estatico)
-  const r = (await sql`SELECT embudo, count(*)::int n FROM reuniones WHERE fuente='calendly' AND NOT cancelada AND utm_campaign = ANY(${campanas})
+  const r = (await sql`SELECT embudo, count(*)::int n FROM reuniones WHERE fuente='calendly' AND NOT cancelada AND utm_campaign = ANY(${campanas.flatMap((c) => [c, c + "-cal"])})
     AND (fecha_agenda AT TIME ZONE 'America/Argentina/Buenos_Aires')::date = ${dia}::date GROUP BY 1`) as { embudo: string; n: number }[];
   return { principal: r.find((x) => x.embudo === "principal")?.n ?? 0, downsell: r.find((x) => x.embudo === "downsell")?.n ?? 0 };
 }
