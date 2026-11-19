@@ -136,11 +136,14 @@ async function eventosManychat(dia: string) {
 
 async function asegurarPestanaDiag() {
   const s = hojas();
-  const meta = await s.spreadsheets.get({ spreadsheetId: SETTING, fields: "sheets.properties.title" });
+  const meta = await s.spreadsheets.get({ spreadsheetId: SETTING, fields: "sheets.properties(title,sheetId,gridProperties.columnCount)" });
   if (meta.data.sheets!.some((x) => x.properties!.title === PESTANA_DIAG)) {
     // Columnas nuevas (los conjuntos): se agregan al final, sin mover las que ya están.
     const fila = (await s.spreadsheets.values.get({ spreadsheetId: SETTING, range: `'${PESTANA_DIAG}'!1:1` })).data.values?.[0] ?? [];
     const faltan = ENCABEZADO_DIAG.filter((t) => !fila.map(limpio).includes(limpio(t)));
+    const hoja = meta.data.sheets!.find((x) => x.properties!.title === PESTANA_DIAG)!.properties!;
+    const sobran = fila.length + faltan.length - (hoja.gridProperties?.columnCount ?? 0); // la pestaña tiene un ancho fijo: se agranda si hace falta
+    if (faltan.length && sobran > 0) await s.spreadsheets.batchUpdate({ spreadsheetId: SETTING, requestBody: { requests: [{ appendDimension: { sheetId: hoja.sheetId, dimension: "COLUMNS", length: sobran } }] } });
     if (faltan.length) await s.spreadsheets.values.update({ spreadsheetId: SETTING, range: `'${PESTANA_DIAG}'!${letra(fila.length)}1`, valueInputOption: "RAW", requestBody: { values: [faltan] } });
     return;
   }
