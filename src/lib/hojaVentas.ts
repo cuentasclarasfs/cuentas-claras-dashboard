@@ -78,13 +78,15 @@ export async function leerHojas(): Promise<FilaHoja[]> {
 }
 
 /** Une filas del Sheets con reuniones de la base: mismo nombre a ±45 días (se reagenda cambiando la fecha), la más cercana primero; una cancelada solo si no hay otra. */
-export function cruzar(filas: FilaHoja[], db: { id: string; nombre: string; fecha_reu: string; cancelada: boolean; embudo?: string }[]) {
+export function cruzar(filas: FilaHoja[], db: { id: string; nombre: string; mail?: string | null; fecha_reu: string; cancelada: boolean; embudo?: string }[]) {
   const pares: { f: FilaHoja; id: string; costo: number }[] = [];
   for (const f of filas) if (!f.repetidaDe) for (const r of db) {
     const dias = Math.abs(new Date(r.fecha_reu).getTime() - f.reu.getTime()) / DIA;
     // Una agenda del downsell prefiere una fila de la pestaña Downsell (y al revés): la misma persona puede tener las dos reuniones.
     const otraPestana = r.embudo && (r.embudo === "downsell") !== (f.hoja === "Downsell") ? 30 : 0;
-    if (dias < 45 && parecido(r.nombre ?? "", f.nombre)) pares.push({ f, id: r.id, costo: dias + (r.cancelada ? 60 : 0) + otraPestana });
+    // Misma persona = nombre parecido o mismo mail (al reagendar a veces escriben el nombre distinto).
+    const mismoMail = !!r.mail && mailDe(r.mail) === mailDe(f.c[2]);
+    if (dias < 45 && (mismoMail || parecido(r.nombre ?? "", f.nombre))) pares.push({ f, id: r.id, costo: dias + (r.cancelada ? 60 : 0) + otraPestana });
   }
   pares.sort((a, b) => a.costo - b.costo);
   const usados = new Set<string>();
@@ -98,14 +100,26 @@ const seguro = (v: string | number) => (typeof v === "string" && /^[=+\-@]/.test
 
 // No uso «append»: el Sheets adivina mal dónde empieza la tabla y corre las columnas. Se escribe después de la última fila con nombre.
 async function agregarFilas(pestana: string, filas: (string | number)[][]) {
-  const s = hojas();
-  const col = (await s.spreadsheets.values.get({ spreadsheetId: ID, range: `'${pestana}'!B:B` })).data.values ?? [];
-  const desde = col.length + 1;
-  await s.spreadsheets.values.update({
-    spreadsheetId: ID, range: `'${pestana}'!A${desde}:${String.fromCharCode(64 + filas[0].length)}${desde + filas.length - 1}`, valueInputOption: "USER_ENTERED",
-    requestBody: { values: filas.map((f) => f.map(seguro)) },
-  });
-  await ordenarPorReunion(pestana);
+  // Uno a la vez: si el sync y un closer agregan filas juntos, los dos leerían la misma «última fila» y uno pisaría al otro.
+  await sql`INSERT INTO sync_estado VALUES ('hoja_filas', '0') ON CONFLICT (clave) DO NOTHING`;
+  for (let i = 0; ; i++) {
+    const ahora = Date.now();
+    if ((await sql`UPDATE sync_estado SET valor=${String(ahora)} WHERE clave='hoja_filas' AND valor::bigint < ${ahora - 60_000} RETURNING clave`).length) break;
+    if (i >= 20) throw new Error("Sheets ocupado: no se agregaron filas a " + pestana);
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  try {
+    const s = hojas();
+    const col = (await s.spreadsheets.values.get({ spreadsheetId: ID, range: `'${pestana}'!B:B` })).data.values ?? [];
+    const desde = col.length + 1;
+    await s.spreadsheets.values.update({
+      spreadsheetId: ID, range: `'${pestana}'!A${desde}:${String.fromCharCode(64 + filas[0].length)}${desde + filas.length - 1}`, valueInputOption: "USER_ENTERED",
+      requestBody: { values: filas.map((f) => f.map(seguro)) },
+    });
+    await ordenarPorReunion(pestana);
+  } finally {
+    await sql`UPDATE sync_estado SET valor='0' WHERE clave='hoja_filas'`;
+  }
 }
 
 /** Ordena toda la pestaña por Fecha de reunión (N), como la ordenó Fran (18-11); las filas se mueven con sus colores. */
@@ -175,6 +189,28 @@ export function canalOrigen(r: { evento: string; utm_source: string | null; utm_
   return ["", ""];
 }
 
+const mailDe = (v: unknown) => String(v ?? "").trim().toLowerCase();
+
+/** Agendas de Calendly vigentes sin fila en su pestaña (ni otra fila de la misma persona: eso sería una reagenda). */
+export function queFaltan(filas: FilaHoja[], db: any[], desde: Date) {
+  // Una que ya se cargó solo se vuelve a cargar si es de la época automática (antes del 16-11 cargaba el setter a mano).
+  return db.filter((r) => r.fuente === "calendly" && !r.cancelada && !r.descartada && new Date(r.fecha_reu) >= desde &&
+    (!r.hoja || new Date(r.fecha_reu) >= AUTO_DESDE) &&
+    !filas.some((f) => f.match === r.id) &&
+    !filas.some((f) => (f.hoja === "Downsell") === (r.embudo === "downsell") &&
+      Math.abs(f.reu.getTime() - new Date(r.fecha_reu).getTime()) < 45 * DIA &&
+      ((!!r.mail && mailDe(r.mail) === mailDe(f.c[2])) || parecido(r.nombre ?? "", f.nombre))));
+}
+
+/** Fecha de la primera agenda de esa persona en ese embudo (las reagendas cuentan el día que agendó por primera vez). */
+export function primeraAgenda(r: any, db: any[]) {
+  const t = new Date(r.fecha_reu).getTime();
+  const fechas = db.filter((o) => o.embudo === r.embudo && o.fecha_agenda && Math.abs(new Date(o.fecha_reu).getTime() - t) < 45 * DIA &&
+    ((!!r.mail && mailDe(o.mail) === mailDe(r.mail)) || parecido(o.nombre ?? "", r.nombre ?? "")))
+    .map((o) => new Date(o.fecha_agenda).getTime());
+  return new Date(Math.min(...fechas, r.fecha_agenda ? new Date(r.fecha_agenda).getTime() : t));
+}
+
 /**
  * Sincroniza las reuniones desde `desde`:
  * 1) lo que dice el Sheets (status, montos, canal…) pasa a la plataforma;
@@ -195,6 +231,10 @@ export async function sincronizarHoja(desde: Date) {
     if (id) {
       const r = porId.get(id);
       const d0 = f.datos;
+      // Fila cargada a mano sin mail: se completa con el de Calendly, así la persona se reconoce por mail (no solo por nombre).
+      if (!f.repetidaDe && r.mail && !String(f.c[2] ?? "").trim() && r.fuente === "calendly" && f.reu >= AUTO_DESDE) {
+        celdas.push({ hoja: f.hoja, fila: f.fila, nombre: f.nombre, reu: f.reu, col: "C", valores: [r.mail] }); f.c[2] = r.mail;
+      }
       if (!f.repetidaDe && r.fuente === "calendly" && new Date(r.fecha_reu) >= AUTO_DESDE) {
         // Reagendó en Calendly: se corrige la fecha en su fila. Canceló (sin reagendar): status «Cancelado».
         // Si alguien cambió la fecha en el Sheets (distinta de la última que vimos), manda el Sheets: no se la devuelve a la de Calendly.
@@ -238,13 +278,15 @@ export async function sincronizarHoja(desde: Date) {
   await escribirCeldas(celdas);
 
   // 3) Toda agenda de Calendly tiene su fila: la que no está en el Sheets se agrega al final de su pestaña.
-  const faltan = db.filter((r) => r.fuente === "calendly" && !r.cancelada && !r.hoja && !filas.some((f) => f.match === r.id) &&
-    new Date(r.fecha_reu) >= desde);
+  // También vuelve a cargar la que ya había entrado y desapareció del Sheets (19-11: se perdieron 4 filas), salvo que la persona
+  // ya tenga fila en esa pestaña (mismo mail o nombre, ±45 días): entonces es una reagenda y no suma otra fila.
+  const faltan = queFaltan(filas, db, desde);
   for (const pestana of PESTANAS) {
     const lote = faltan.filter((r) => (r.embudo === "downsell") === (pestana === "Downsell"));
     if (!lote.length) continue;
     await agregarFilas(pestana, lote.map((r) => { const [canal, origen] = canalOrigen(r); return ["", r.nombre ?? "", r.mail ?? "", canal, adOrigen(r), "", "", r.tipo_negocio ?? "", ingresos(r), "",
-      antiguedad(r.antiguedad), "", r.fecha_agenda ? dma(new Date(r.fecha_agenda)) : "", dma(new Date(r.fecha_reu)), CLOSERS[r.closer_mail] ?? "", origen]; }));
+      antiguedad(r.antiguedad), "", dma(primeraAgenda(r, db)), dma(new Date(r.fecha_reu)), CLOSERS[r.closer_mail] ?? "", origen,
+      "", "", "", "", "", "", "", "", r.hoja ? "La plataforma la volvió a cargar: faltaba en el Sheets" : ""]; }));
     for (const r of lote) await sql`UPDATE reuniones SET hoja=${pestana} WHERE id=${r.id}`;
     agregadas += lote.length;
   }
